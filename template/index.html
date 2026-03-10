@@ -1,510 +1,729 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Library Manager</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
-  :root {
-    --bg:        #0d0d0f;
-    --surface:   #141418;
-    --surface2:  #1c1c22;
-    --border:    #2a2a35;
-    --accent:    #c8a96e;
-    --accent2:   #e8c98e;
-    --text:      #e8e8ee;
-    --muted:     #6b6b80;
-    --green:     #4ade80;
-    --blue:      #60a5fa;
-    --red:       #f87171;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'DM Sans', sans-serif;
-    min-height: 100vh;
-  }
-  h1,h2,h3,.font-serif { font-family: 'Playfair Display', serif; }
+/* ══════════════════════════════════════════
+   DESIGN TOKENS
+══════════════════════════════════════════ */
+:root {
+  --bg:        #09090c;
+  --surf:      #101014;
+  --surf2:     #16161c;
+  --surf3:     #1d1d25;
+  --border:    #24242e;
+  --border2:   #2e2e3a;
+  --gold:      #c8a76a;
+  --gold2:     #e4c98c;
+  --gold-glow: rgba(200,167,106,.15);
+  --blue:      #5b9cf6;
+  --blue-dim:  rgba(91,156,246,.13);
+  --green:     #4fbe80;
+  --grn-dim:   rgba(79,190,128,.12);
+  --red:       #e86060;
+  --red-dim:   rgba(232,96,96,.1);
+  --text:      #dddde8;
+  --text2:     #8888a0;
+  --text3:     #50505f;
+  --mono:      'JetBrains Mono', monospace;
+  --radius-card: 14px;
+  --shadow-card: 0 4px 24px rgba(0,0,0,.5), 0 1px 4px rgba(0,0,0,.3);
+  --shadow-card-hover: 0 12px 48px rgba(0,0,0,.7), 0 2px 8px rgba(0,0,0,.4);
+}
 
-  /* Scrollbar */
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: var(--surface); }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+/* ══════════════════════════════════════════
+   RESET & BASE
+══════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; min-height: 100vh; }
+.serif { font-family: 'Libre Baskerville', serif; }
+.mono  { font-family: var(--mono); }
 
-  /* Sidebar */
-  #sidebar {
-    background: var(--surface);
-    border-right: 1px solid var(--border);
-    width: 260px;
-    min-height: 100vh;
-    position: fixed; top: 0; left: 0;
-    display: flex; flex-direction: column;
-    z-index: 50;
-    transition: transform .3s ease;
-  }
-  .logo-line {
-    width: 32px; height: 2px;
-    background: var(--accent);
-    display: block; margin-bottom: 4px;
-  }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 
-  /* Cards */
-  .book-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    overflow: hidden;
-    cursor: pointer;
-    transition: transform .2s, box-shadow .2s, border-color .2s;
-    position: relative;
-  }
-  .book-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 16px 40px rgba(0,0,0,.5);
-    border-color: var(--accent);
-  }
-  .book-cover {
-    width: 100%; aspect-ratio: 2/3;
-    object-fit: cover;
-    display: block;
-    background: var(--surface2);
-  }
-  .cover-placeholder {
-    width: 100%; aspect-ratio: 2/3;
-    background: linear-gradient(135deg, var(--surface2) 0%, #1e1e2e 100%);
-    display: flex; align-items: center; justify-content: center;
-    flex-direction: column; gap: 8px;
-  }
-  .progress-bar {
-    height: 3px;
-    background: var(--border);
-    border-radius: 2px;
-    overflow: hidden;
-  }
-  .progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-    border-radius: 2px;
-    transition: width .5s ease;
-  }
-  .badge {
-    display: inline-flex; align-items: center;
-    padding: 2px 8px; border-radius: 20px;
-    font-size: 11px; font-weight: 500;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    color: var(--muted);
-  }
-  .badge.accent { background: rgba(200,169,110,.12); border-color: rgba(200,169,110,.3); color: var(--accent); }
-  .badge.green  { background: rgba(74,222,128,.1);   border-color: rgba(74,222,128,.3);  color: var(--green); }
-  .badge.blue   { background: rgba(96,165,250,.1);   border-color: rgba(96,165,250,.3);  color: var(--blue);  }
+/* ══════════════════════════════════════════
+   LAYOUT
+══════════════════════════════════════════ */
+#sidebar {
+  background: var(--surf);
+  border-right: 1px solid var(--border);
+  width: 248px; min-height: 100vh;
+  position: fixed; top: 0; left: 0;
+  display: flex; flex-direction: column;
+  z-index: 50;
+  transition: transform .25s cubic-bezier(.4,0,.2,1);
+}
+#main { margin-left: 248px; min-height: 100vh; display: flex; flex-direction: column; }
 
-  /* Modal */
-  #modal-overlay {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,.75);
-    backdrop-filter: blur(4px);
-    z-index: 100;
-    display: none; align-items: center; justify-content: center;
-    padding: 20px;
-  }
-  #modal-overlay.open { display: flex; }
-  #modal {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    width: 100%; max-width: 680px;
-    max-height: 90vh;
-    overflow-y: auto;
-  }
+/* ══════════════════════════════════════════
+   SIDEBAR NAV
+══════════════════════════════════════════ */
+.logo-bar { width: 26px; height: 2px; background: var(--gold); display: block; margin-bottom: 3px; }
 
-  /* Inputs */
-  .input-field {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 12px;
-    color: var(--text);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
-    width: 100%;
-    transition: border-color .2s;
-  }
-  .input-field:focus { outline: none; border-color: var(--accent); }
-  .input-field::placeholder { color: var(--muted); }
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 11px; border-radius: 8px;
+  font-size: 13px; font-weight: 500; color: var(--text2);
+  cursor: pointer; transition: all .14s;
+  border: 1px solid transparent; text-decoration: none;
+}
+.nav-item:hover { color: var(--text); background: var(--surf2); }
+.nav-item.active { color: var(--gold); background: var(--gold-glow); border-color: rgba(200,167,106,.2); }
 
-  textarea.input-field { resize: vertical; min-height: 80px; }
+.section-label {
+  font-size: 10px; font-weight: 700; letter-spacing: .1em;
+  color: var(--text3); text-transform: uppercase; padding: 0 4px;
+  margin: 12px 0 6px;
+}
 
-  /* Buttons */
-  .btn {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 8px 16px; border-radius: 8px;
-    font-size: 13px; font-weight: 500;
-    cursor: pointer; transition: all .2s;
-    border: none; font-family: 'DM Sans', sans-serif;
-  }
-  .btn-primary {
-    background: var(--accent);
-    color: #0d0d0f;
-  }
-  .btn-primary:hover { background: var(--accent2); }
-  .btn-ghost {
-    background: transparent;
-    color: var(--muted);
-    border: 1px solid var(--border);
-  }
-  .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
-  .btn-danger { background: rgba(248,113,113,.15); color: var(--red); border: 1px solid rgba(248,113,113,.3); }
-  .btn-danger:hover { background: rgba(248,113,113,.25); }
+/* ══════════════════════════════════════════
+   TOPBAR & STATS
+══════════════════════════════════════════ */
+#topbar {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 13px 28px;
+  background: rgba(9,9,12,.9);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+}
 
-  /* Stat cards */
-  .stat-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px;
-    position: relative;
-    overflow: hidden;
-  }
-  .stat-card::before {
-    content: '';
-    position: absolute; top: 0; left: 0; right: 0;
-    height: 2px;
-  }
-  .stat-card.gold::before  { background: linear-gradient(90deg, var(--accent), transparent); }
-  .stat-card.green::before { background: linear-gradient(90deg, var(--green),  transparent); }
-  .stat-card.blue::before  { background: linear-gradient(90deg, var(--blue),   transparent); }
-  .stat-card.muted::before { background: linear-gradient(90deg, var(--muted),  transparent); }
+.stat-card {
+  background: var(--surf); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px 18px;
+  position: relative; overflow: hidden;
+}
+.stat-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+}
+.s-gold::before  { background: linear-gradient(90deg, var(--gold), transparent); }
+.s-green::before { background: linear-gradient(90deg, var(--green), transparent); }
+.s-blue::before  { background: linear-gradient(90deg, var(--blue), transparent); }
+.s-dim::before   { background: linear-gradient(90deg, var(--border2), transparent); }
 
-  /* Toast */
-  #toast {
-    position: fixed; bottom: 24px; right: 24px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 12px 20px;
-    font-size: 13px;
-    z-index: 200;
-    transform: translateY(80px);
-    opacity: 0;
-    transition: all .3s cubic-bezier(.34,1.56,.64,1);
-    pointer-events: none;
-  }
-  #toast.show { transform: translateY(0); opacity: 1; }
+/* ══════════════════════════════════════════
+   BOOK CARDS — True Vertical Book Card
+══════════════════════════════════════════ */
 
-  /* Tag chip */
-  .tag-chip {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 3px 10px; border-radius: 20px;
-    font-size: 11px; font-weight: 500;
-    background: rgba(200,169,110,.1);
-    border: 1px solid rgba(200,169,110,.25);
-    color: var(--accent);
-    cursor: pointer;
-    transition: all .15s;
-  }
-  .tag-chip:hover { background: rgba(200,169,110,.2); }
-  .tag-chip.active { background: rgba(200,169,110,.2); border-color: var(--accent); }
+/* Grid container: flex-wrap so cards never stretch */
+#books-grid.card-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: flex-start;
+  align-items: stretch; /* all cards in a row grow to same height */
+}
 
-  /* Nav items */
-  .nav-item {
-    display: flex; align-items: center; gap: 10px;
-    padding: 8px 14px; border-radius: 8px;
-    font-size: 13px; font-weight: 500;
-    color: var(--muted);
-    cursor: pointer;
-    transition: all .15s;
-    border: 1px solid transparent;
-    text-decoration: none;
-  }
-  .nav-item:hover, .nav-item.active {
-    color: var(--text);
-    background: var(--surface2);
-    border-color: var(--border);
-  }
-  .nav-item.active { color: var(--accent); }
+/* Each card is a fixed 168px wide — never grows */
+.book-card {
+  width: 168px;
+  flex-shrink: 0;
+  flex-grow: 0;
+  background: var(--surf);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+  transition: transform .22s cubic-bezier(.34,1.4,.64,1),
+              box-shadow .22s ease,
+              border-color .18s ease;
+  animation: fadeUp .28s ease both;
+  display: flex;
+  flex-direction: column;
+  /* Cards in the same row align to the tallest one */
+}
 
-  /* Main content */
-  #main { margin-left: 260px; min-height: 100vh; }
+.book-card:hover {
+  transform: translateY(-7px) scale(1.02);
+  box-shadow: var(--shadow-card-hover);
+  border-color: var(--border2);
+}
 
-  /* Read overlay on card */
-  .read-overlay {
-    position: absolute; top: 8px; right: 8px;
-    background: rgba(74,222,128,.9);
-    color: #0d0d0f;
-    border-radius: 20px;
-    padding: 2px 8px;
-    font-size: 10px; font-weight: 700;
-    letter-spacing: .5px;
-  }
+/* ── Cover: fixed aspect ratio, top 75% of card ── */
+.card-cover-wrap {
+  position: relative;
+  width: 100%;
+  /* 2:3 book cover ratio */
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  background: var(--surf2);
+  flex-shrink: 0;
+}
 
-  /* Animations */
-  @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
-  .fade-in { animation: fadeIn .3s ease both; }
-  .book-card { animation: fadeIn .3s ease both; }
+.card-cover-wrap img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform .4s ease;
+  border-radius: 0; /* handled by parent overflow:hidden */
+}
+.book-card:hover .card-cover-wrap img {
+  transform: scale(1.06);
+}
 
-  /* Loading spinner */
-  .spinner {
-    width: 20px; height: 20px;
-    border: 2px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin .7s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
+/* Hover "Open" overlay — fades in on hover */
+.card-hover-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(9,9,12,.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity .2s ease;
+  backdrop-filter: blur(2px);
+}
+.book-card:hover .card-hover-overlay {
+  opacity: 1;
+}
+.card-hover-overlay span {
+  background: var(--gold);
+  color: #09090c;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  padding: 6px 14px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  box-shadow: 0 4px 16px rgba(0,0,0,.5);
+}
 
-  /* Responsive */
-  @media (max-width: 768px) {
-    #sidebar { transform: translateX(-100%); }
-    #sidebar.open { transform: translateX(0); }
-    #main { margin-left: 0; }
-  }
+/* Placeholder cover */
+.cover-ph {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(155deg, var(--surf2) 0%, #12121a 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* "READ" pill — top-left corner of cover */
+.read-ribbon {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: var(--green);
+  color: #071a0f;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  padding: 2px 7px;
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.5);
+  z-index: 2;
+  text-transform: uppercase;
+}
+
+/* ── Card body: title → badges → progress bar ── */
+.card-body {
+  padding: 10px 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.card-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--text);
+  /* Clamp to 2 lines */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  /* Prevent any horizontal stretching */
+  word-break: break-word;
+}
+
+/* Badge row below title */
+.card-badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  min-height: 18px;
+}
+
+/* Progress bar — flush to the bottom edge of the card */
+.card-progress {
+  margin-top: auto;
+  padding: 0 0 10px;
+}
+.card-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.card-progress-pct {
+  font-size: 10px;
+  color: var(--text3);
+  font-family: var(--mono);
+}
+
+/* Progress bar */
+.pbar { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.pbar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold), var(--gold2));
+  border-radius: 2px;
+  transition: width .6s cubic-bezier(.4,0,.2,1);
+}
+.pbar-label { font-size: 10px; color: var(--text3); font-family: var(--mono); }
+
+/* ── List row (unchanged layout, just polish) ── */
+.list-row {
+  background: var(--surf); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden; cursor: pointer;
+  box-shadow: var(--shadow-card);
+  transition: border-color .16s, box-shadow .16s, transform .16s;
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 16px;
+  animation: fadeUp .28s ease both;
+}
+.list-row:hover {
+  border-color: var(--border2);
+  box-shadow: 0 6px 24px rgba(0,0,0,.5);
+  transform: translateX(2px);
+}
+
+/* ══════════════════════════════════════════
+   BADGES
+══════════════════════════════════════════ */
+.badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 7px; border-radius: 20px;
+  font-size: 10.5px; font-weight: 600; letter-spacing: .02em; white-space: nowrap;
+}
+.b-cat  { background: var(--blue-dim);  border: 1px solid rgba(91,156,246,.25);  color: var(--blue);  }
+.b-tag  { background: var(--grn-dim);   border: 1px solid rgba(79,190,128,.25);   color: var(--green); }
+.b-read { background: var(--gold-glow); border: 1px solid rgba(200,167,106,.25); color: var(--gold);  }
+.b-dim  { background: var(--surf3);     border: 1px solid var(--border);          color: var(--text3); }
+
+/* tag chip in sidebar */
+.tag-chip {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 3px 8px; border-radius: 20px; font-size: 11px; font-weight: 600;
+  background: rgba(200,167,106,.07); border: 1px solid rgba(200,167,106,.18); color: var(--gold);
+  cursor: pointer; transition: all .14s;
+}
+.tag-chip:hover, .tag-chip.active { background: rgba(200,167,106,.16); border-color: var(--gold); }
+
+/* ══════════════════════════════════════════
+   FORM CONTROLS
+══════════════════════════════════════════ */
+.field {
+  background: var(--surf2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 12px; color: var(--text); font-family: 'Inter', sans-serif; font-size: 13.5px;
+  width: 100%; transition: border-color .15s;
+}
+.field:focus { outline: none; border-color: var(--gold); }
+.field::placeholder { color: var(--text3); }
+textarea.field { resize: vertical; min-height: 72px; line-height: 1.55; }
+input[type="date"].field { color-scheme: dark; }
+
+/* ══════════════════════════════════════════
+   BUTTONS
+══════════════════════════════════════════ */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all .14s; border: none;
+  font-family: 'Inter', sans-serif; white-space: nowrap;
+}
+.btn-primary { background: var(--gold); color: #09090c; }
+.btn-primary:hover { background: var(--gold2); }
+
+.btn-open {
+  background: linear-gradient(135deg,#172440,#142035);
+  color: var(--blue); border: 1px solid rgba(91,156,246,.28);
+  font-weight: 600; font-size: 14px; padding: 10px 20px;
+  width: 100%;
+  justify-content: center;
+}
+.btn-open:hover { background: linear-gradient(135deg,#1d2f52,#192944); border-color: var(--blue); }
+
+.btn-ghost  { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+.btn-ghost:hover { color: var(--text); border-color: var(--border2); }
+.btn-danger { background: var(--red-dim); color: var(--red); border: 1px solid rgba(232,96,96,.22); }
+.btn-danger:hover { background: rgba(232,96,96,.18); }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+.btn-icon { padding: 7px; border-radius: 7px; }
+
+/* cover upload button */
+.btn-upload {
+  background: var(--surf2); color: var(--text2); border: 1px dashed var(--border2);
+  width: 100%; justify-content: center; font-size: 12px;
+  transition: border-color .15s, color .15s;
+}
+.btn-upload:hover { border-color: var(--gold); color: var(--gold); }
+
+/* ══════════════════════════════════════════
+   MODAL
+══════════════════════════════════════════ */
+#modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.78);
+  backdrop-filter: blur(8px);
+  z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  opacity: 0; pointer-events: none;
+  transition: opacity .22s ease;
+}
+#modal-overlay.open { opacity: 1; pointer-events: all; }
+
+/* scroll-lock helper — applied to body */
+body.modal-open { overflow: hidden; }
+
+#modal {
+  background: var(--surf); border: 1px solid var(--border); border-radius: 16px;
+  width: 100%; max-width: 700px; max-height: 90vh; overflow: hidden;
+  display: flex; flex-direction: column;
+  transform: translateY(20px) scale(.97);
+  transition: transform .28s cubic-bezier(.34,1.3,.64,1);
+  box-shadow: 0 32px 80px rgba(0,0,0,.7);
+}
+#modal-overlay.open #modal { transform: none; }
+
+.modal-header { padding: 22px 22px 0; flex-shrink: 0; }
+.modal-body   { overflow-y: auto; padding: 18px 22px 22px; flex: 1; }
+
+.sec-title {
+  font-size: 10px; font-weight: 700; letter-spacing: .1em; color: var(--text3);
+  text-transform: uppercase; display: flex; align-items: center; gap: 8px;
+  margin-bottom: 10px;
+}
+.sec-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* Tab bar */
+.tab-bar { display: flex; gap: 2px; background: var(--surf2); border-radius: 9px; padding: 3px; margin-bottom: 18px; }
+.tab {
+  flex: 1; text-align: center; padding: 6px 8px; border-radius: 7px;
+  font-size: 12px; font-weight: 600; color: var(--text3); cursor: pointer; transition: all .14s;
+}
+.tab.active { background: var(--surf3); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+
+/* Timeline */
+.timeline { position: relative; padding-left: 22px; }
+.timeline::before { content: ''; position: absolute; left: 5px; top: 6px; bottom: 6px; width: 1px; background: var(--border); }
+.tl-item { position: relative; margin-bottom: 16px; }
+.tl-item:last-child { margin-bottom: 0; }
+.tl-dot {
+  position: absolute; left: -20px; top: 5px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--border2); border: 2px solid var(--border);
+  transition: background .2s;
+}
+.tl-start .tl-dot { background: var(--blue); border-color: var(--blue); }
+.tl-end   .tl-dot { background: var(--green); border-color: var(--green); }
+.tl-log   .tl-dot { background: var(--gold); border-color: var(--gold); }
+
+.tl-date { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-bottom: 2px; }
+.tl-text { font-size: 13px; color: var(--text2); }
+.tl-edit-row { display: flex; gap: 6px; margin-top: 6px; }
+.tl-note-input { flex: 1; }
+
+/* Settings overlay */
+#settings-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.72); backdrop-filter: blur(6px);
+  z-index: 110; display: flex; align-items: center; justify-content: center; padding: 20px;
+  opacity: 0; pointer-events: none; transition: opacity .2s;
+}
+#settings-overlay.open { opacity: 1; pointer-events: all; }
+
+/* Toast */
+#toast {
+  position: fixed; bottom: 22px; right: 22px;
+  background: var(--surf2); border: 1px solid var(--border); border-radius: 9px;
+  padding: 10px 18px; font-size: 13px; z-index: 200;
+  transform: translateY(60px); opacity: 0;
+  transition: all .3s cubic-bezier(.34,1.4,.64,1); pointer-events: none;
+  max-width: 280px;
+}
+#toast.show { transform: none; opacity: 1; }
+
+/* Spinner */
+.spinner { width: 18px; height: 18px; border: 2px solid var(--border2); border-top-color: var(--gold); border-radius: 50%; animation: spin .65s linear infinite; }
+
+/* Animations */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes spin   { to { transform: rotate(360deg); } }
+
+/* Cover preview in modal */
+.modal-cover-wrap {
+  position: relative; width: 120px; min-width: 120px; flex-shrink: 0;
+}
+.modal-cover-wrap img, .modal-cover-ph {
+  width: 120px; height: 180px; border-radius: 9px; object-fit: cover;
+}
+.modal-cover-ph {
+  background: var(--surf2); display: flex; align-items: center; justify-content: center; font-size: 38px;
+}
+.cover-edit-btn {
+  position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%);
+  background: var(--surf2); border: 1px solid var(--border2); border-radius: 6px;
+  padding: 3px 10px; font-size: 11px; font-weight: 600; color: var(--text2);
+  cursor: pointer; white-space: nowrap; transition: all .14s;
+}
+.cover-edit-btn:hover { color: var(--gold); border-color: var(--gold); }
+
+/* Empty state */
+#empty-state {
+  display: none; flex-direction: column; align-items: center;
+  justify-content: center; padding: 80px 20px; text-align: center;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  #sidebar { transform: translateX(-100%); }
+  #sidebar.open { transform: translateX(0); }
+  #main { margin-left: 0; }
+}
 </style>
 </head>
 <body>
 
-<!-- ═══ SIDEBAR ════════════════════════════════════════════════════════════ -->
+<!-- ══════════════════════════════════════════════════════════
+     SIDEBAR
+══════════════════════════════════════════════════════════ -->
 <aside id="sidebar">
-  <div class="p-5 border-b" style="border-color:var(--border)">
-    <div class="flex items-center gap-3 mb-1">
-      <div>
-        <span class="logo-line"></span>
-        <span class="logo-line" style="width:20px"></span>
-      </div>
-      <h1 class="font-serif text-lg" style="color:var(--accent)">Library</h1>
+  <div style="padding:18px 14px 14px; border-bottom:1px solid var(--border)">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:5px">
+      <div><span class="logo-bar"></span><span class="logo-bar" style="width:16px"></span></div>
+      <span class="serif" style="font-size:17px;color:var(--gold)">Library</span>
     </div>
-    <p class="text-xs" style="color:var(--muted)" id="sidebar-path">Loading…</p>
+    <p id="sidebar-path" style="font-size:10.5px;color:var(--text3);font-family:var(--mono);word-break:break-all;line-height:1.4">…</p>
   </div>
 
-  <!-- Search -->
-  <div class="p-4">
-    <div class="relative">
-      <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style="color:var(--muted)" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/></svg>
-      <input id="search-input" class="input-field pl-9" placeholder="Search books…" oninput="debounceSearch()"/>
+  <div style="padding:10px 10px 0">
+    <div style="position:relative">
+      <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:var(--text3)" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/></svg>
+      <input id="search-input" class="field" style="padding-left:30px;font-size:13px" placeholder="Search books…" oninput="debounceSearch()"/>
     </div>
   </div>
 
-  <!-- Nav -->
-  <nav class="px-3 flex-1 space-y-1">
-    <a class="nav-item active" onclick="filterBy('all')" id="nav-all">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>
-      All Books
-    </a>
-    <a class="nav-item" onclick="filterBy('reading')" id="nav-reading">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
-      In Progress
-    </a>
-    <a class="nav-item" onclick="filterBy('read')" id="nav-read">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-      Finished
-    </a>
-    <a class="nav-item" onclick="filterBy('pdf')" id="nav-pdf">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
-      PDFs
-    </a>
-    <a class="nav-item" onclick="filterBy('epub')" id="nav-epub">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
-      EPUBs
-    </a>
+  <nav style="padding:8px 8px;flex:1;overflow-y:auto">
+    <div class="nav-item active" id="nav-all"     onclick="filterBy('all')">
+      <svg style="width:14px;height:14px;flex-shrink:0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>All Books
+    </div>
+    <div class="nav-item" id="nav-reading" onclick="filterBy('reading')">
+      <svg style="width:14px;height:14px;flex-shrink:0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>In Progress
+    </div>
+    <div class="nav-item" id="nav-read" onclick="filterBy('read')">
+      <svg style="width:14px;height:14px;flex-shrink:0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Finished
+    </div>
+    <div class="nav-item" id="nav-pdf"  onclick="filterBy('pdf')">
+      <svg style="width:14px;height:14px;flex-shrink:0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>PDFs
+    </div>
+    <div class="nav-item" id="nav-epub" onclick="filterBy('epub')">
+      <svg style="width:14px;height:14px;flex-shrink:0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>EPUBs
+    </div>
 
-    <hr style="border-color:var(--border); margin: 12px 0"/>
-    <p class="text-xs font-semibold px-2 mb-2" style="color:var(--muted); letter-spacing:.08em">CATEGORIES</p>
-    <div id="category-list" class="space-y-1"></div>
+    <div class="section-label">Categories</div>
+    <div id="category-list"></div>
 
-    <hr style="border-color:var(--border); margin: 12px 0"/>
-    <p class="text-xs font-semibold px-2 mb-2" style="color:var(--muted); letter-spacing:.08em">TAGS</p>
-    <div id="tag-list" class="flex flex-wrap gap-2 px-1"></div>
+    <div class="section-label">Tags</div>
+    <div id="tag-list" style="display:flex;flex-wrap:wrap;gap:5px;padding:0 2px"></div>
   </nav>
 
-  <!-- Bottom actions -->
-  <div class="p-4 border-t space-y-2" style="border-color:var(--border)">
-    <button class="btn btn-ghost w-full justify-center" onclick="openSettings()">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+  <div style="padding:10px 8px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px">
+    <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center" onclick="openSettings()">
+      <svg style="width:13px;height:13px" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
       Settings
     </button>
-    <button class="btn btn-ghost w-full justify-center" onclick="rescan()">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+    <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center" onclick="rescan()">
+      <svg style="width:13px;height:13px" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
       Rescan Library
     </button>
   </div>
 </aside>
 
-<!-- ═══ MAIN ════════════════════════════════════════════════════════════════ -->
+<!-- ══════════════════════════════════════════════════════════
+     MAIN
+══════════════════════════════════════════════════════════ -->
 <main id="main">
-  <!-- Header -->
-  <header class="sticky top-0 z-40 flex items-center justify-between px-8 py-4" style="background:rgba(13,13,15,.9); backdrop-filter:blur(12px); border-bottom:1px solid var(--border)">
-    <div class="flex items-center gap-4">
-      <button class="md:hidden btn btn-ghost p-2" onclick="toggleSidebar()">
-        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-      </button>
+  <!-- Topbar -->
+  <header id="topbar">
+    <div style="display:flex;align-items:center;gap:12px">
       <div>
-        <h2 class="font-serif text-xl" id="view-title">All Books</h2>
-        <p class="text-xs" style="color:var(--muted)" id="book-count">Loading…</p>
+        <h2 class="serif" style="font-size:18px" id="view-title">All Books</h2>
+        <p style="font-size:11.5px;color:var(--text3)" id="book-count">Loading…</p>
       </div>
     </div>
-    <div class="flex items-center gap-3">
-      <div id="loading-indicator" class="spinner" style="display:none"></div>
-      <button class="btn btn-ghost" onclick="toggleView()">
-        <svg id="view-icon-grid" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
-        <svg id="view-icon-list" class="w-4 h-4 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div id="spinner" class="spinner" style="display:none"></div>
+      <button class="btn btn-icon btn-ghost" onclick="toggleView()" title="Toggle layout">
+        <svg id="icon-grid" style="width:15px;height:15px" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+        <svg id="icon-list" style="width:15px;height:15px;display:none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
     </div>
   </header>
 
-  <!-- Stats Dashboard -->
-  <section class="px-8 pt-6 pb-2">
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-      <div class="stat-card gold">
-        <p class="text-xs mb-1" style="color:var(--muted)">TOTAL BOOKS</p>
-        <p class="font-serif text-3xl" id="stat-total">—</p>
+  <!-- Stats -->
+  <section style="padding:18px 28px 8px">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px">
+      <div class="stat-card s-gold">
+        <p style="font-size:9.5px;color:var(--text3);font-weight:700;letter-spacing:.09em;margin-bottom:3px">TOTAL</p>
+        <p class="serif" style="font-size:26px" id="st-total">—</p>
       </div>
-      <div class="stat-card green">
-        <p class="text-xs mb-1" style="color:var(--muted)">FINISHED</p>
-        <p class="font-serif text-3xl" style="color:var(--green)" id="stat-read">—</p>
+      <div class="stat-card s-green">
+        <p style="font-size:9.5px;color:var(--text3);font-weight:700;letter-spacing:.09em;margin-bottom:3px">FINISHED</p>
+        <p class="serif" style="font-size:26px;color:var(--green)" id="st-read">—</p>
       </div>
-      <div class="stat-card blue">
-        <p class="text-xs mb-1" style="color:var(--muted)">IN PROGRESS</p>
-        <p class="font-serif text-3xl" style="color:var(--blue)" id="stat-progress">—</p>
+      <div class="stat-card s-blue">
+        <p style="font-size:9.5px;color:var(--text3);font-weight:700;letter-spacing:.09em;margin-bottom:3px">READING</p>
+        <p class="serif" style="font-size:26px;color:var(--blue)" id="st-prog">—</p>
       </div>
-      <div class="stat-card muted">
-        <p class="text-xs mb-1" style="color:var(--muted)">UNREAD</p>
-        <p class="font-serif text-3xl" style="color:var(--muted)" id="stat-unread">—</p>
+      <div class="stat-card s-dim">
+        <p style="font-size:9.5px;color:var(--text3);font-weight:700;letter-spacing:.09em;margin-bottom:3px">UNREAD</p>
+        <p class="serif" style="font-size:26px;color:var(--text3)" id="st-unread">—</p>
       </div>
     </div>
-    <!-- Top tags -->
-    <div id="top-tags-row" class="flex flex-wrap gap-2 mb-2"></div>
+    <div id="top-tags" style="display:flex;flex-wrap:wrap;gap:5px"></div>
   </section>
 
   <!-- Grid -->
-  <section class="px-8 py-4">
-    <div id="books-grid" class="grid gap-5" style="grid-template-columns: repeat(auto-fill, minmax(160px, 1fr))"></div>
-    <div id="empty-state" class="hidden flex-col items-center justify-center py-24 text-center">
-      <svg class="w-16 h-16 mb-4" style="color:var(--border)" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
-      <p class="font-serif text-xl mb-2" style="color:var(--muted)">No books found</p>
-      <p class="text-sm" style="color:var(--muted)">Add PDF or EPUB files to your library folder</p>
-      <button class="btn btn-primary mt-4" onclick="openSettings()">Set Library Folder</button>
+  <section style="padding:14px 28px 40px">
+    <div id="books-grid"></div>
+    <div id="empty-state">
+      <svg style="width:52px;height:52px;color:var(--border2);margin-bottom:14px" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+      <p class="serif" style="font-size:19px;color:var(--text2);margin-bottom:6px">No books found</p>
+      <p style="font-size:13px;color:var(--text3);margin-bottom:16px">Add PDFs or EPUBs to your library folder</p>
+      <button class="btn btn-primary" onclick="openSettings()">Set Library Folder</button>
     </div>
   </section>
 </main>
 
-<!-- ═══ BOOK DETAIL MODAL ═══════════════════════════════════════════════════ -->
-<div id="modal-overlay" onclick="closeModal(event)">
+<!-- ══════════════════════════════════════════════════════════
+     BOOK DETAIL MODAL
+══════════════════════════════════════════════════════════ -->
+<div id="modal-overlay" onclick="overlayClick(event)">
   <div id="modal">
-    <div class="flex gap-6 p-6" id="modal-content">
-      <!-- populated by JS -->
+    <div class="modal-header" id="modal-header"></div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<!-- Hidden file input for cover upload -->
+<input type="file" id="cover-file-input" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="handleCoverUpload(event)"/>
+
+<!-- ══════════════════════════════════════════════════════════
+     SETTINGS MODAL
+══════════════════════════════════════════════════════════ -->
+<div id="settings-overlay" onclick="settingsOverlayClick(event)">
+  <div style="background:var(--surf);border:1px solid var(--border);border-radius:14px;width:100%;max-width:400px;padding:22px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h2 class="serif" style="font-size:17px">Settings</h2>
+      <button onclick="closeSettings()" class="btn btn-icon btn-ghost" style="color:var(--text3)">✕</button>
+    </div>
+    <label style="font-size:11.5px;color:var(--text3);display:block;margin-bottom:5px">Library Folder Path</label>
+    <input id="settings-path" class="field" placeholder="/Users/you/Books" style="margin-bottom:9px"/>
+    <p style="font-size:11.5px;color:var(--text3);margin-bottom:14px;line-height:1.5">Full path to your folder of PDFs and EPUBs. Auto-synced via Watchdog.</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost btn-sm" onclick="closeSettings()">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveSettings()">Save & Rescan</button>
     </div>
   </div>
 </div>
 
-<!-- ═══ SETTINGS MODAL ═══════════════════════════════════════════════════════ -->
-<div id="settings-overlay" class="fixed inset-0 z-50 hidden items-center justify-center p-5" style="background:rgba(0,0,0,.75); backdrop-filter:blur(4px)">
-  <div class="w-full max-w-md rounded-2xl p-6" style="background:var(--surface); border:1px solid var(--border)">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="font-serif text-xl">Settings</h2>
-      <button onclick="closeSettings()" style="color:var(--muted)">✕</button>
-    </div>
-    <label class="text-sm block mb-2" style="color:var(--muted)">Library Folder Path</label>
-    <input id="settings-path" class="input-field mb-4" placeholder="/path/to/your/books"/>
-    <p class="text-xs mb-4" style="color:var(--muted)">Enter the full path to a folder containing your PDF and EPUB files. The app will scan it and keep it synced automatically.</p>
-    <div class="flex gap-3 justify-end">
-      <button class="btn btn-ghost" onclick="closeSettings()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveSettings()">Save & Rescan</button>
-    </div>
-  </div>
-</div>
-
-<!-- ═══ TOAST ════════════════════════════════════════════════════════════════ -->
+<!-- Toast -->
 <div id="toast"></div>
 
-<!-- ═══ JAVASCRIPT ═══════════════════════════════════════════════════════════ -->
+<!-- ══════════════════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════════════════ -->
 <script>
-// ── State ────────────────────────────────────────────────────────────────────
-let allBooks   = [];
-let currentFilter = 'all';
-let activeTag  = null;
-let activeCategory = null;
-let searchQuery = '';
-let gridView   = true;
-let debounceTimer;
-let currentBookId = null;
+'use strict';
 
-// ── Init ─────────────────────────────────────────────────────────────────────
+// ── State ──────────────────────────────────────────────────────────────────────
+let allBooks = [], currentFilter = 'all', activeTag = null, activeCategory = null;
+let searchQuery = '', gridView = true, _debTimer;
+let _book = null, _logs = [], _activeTab = 'details';
+
+// ── Bootstrap ──────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  loadStats();
-  loadBooks();
-  loadSidebar();
+  loadAll();
   loadLibraryPath();
-  // Refresh every 30s (watchdog may add files)
   setInterval(() => { loadBooks(); loadStats(); }, 30000);
 });
 
-function loading(show) {
-  document.getElementById('loading-indicator').style.display = show ? 'block' : 'none';
-}
+function loadAll() { loadBooks(); loadStats(); loadSidebar(); }
+function spin(v) { document.getElementById('spinner').style.display = v ? 'block' : 'none'; }
 
-// ── API helpers ───────────────────────────────────────────────────────────────
+// ── API ────────────────────────────────────────────────────────────────────────
 async function api(method, path, body) {
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
-  if (body) opts.body = JSON.stringify(body);
+  if (body !== undefined) opts.body = JSON.stringify(body);
   const r = await fetch(path, opts);
-  if (!r.ok) {
-    const t = await r.text();
-    throw new Error(t);
-  }
+  if (!r.ok) { const t = await r.text(); throw new Error(t); }
   return r.json();
 }
 
-// ── Load data ─────────────────────────────────────────────────────────────────
+async function apiForm(method, path, formData) {
+  const r = await fetch(path, { method, body: formData });
+  if (!r.ok) { const t = await r.text(); throw new Error(t); }
+  return r.json();
+}
+
+// ── Loaders ────────────────────────────────────────────────────────────────────
 async function loadBooks() {
-  loading(true);
+  spin(true);
   try {
-    const params = new URLSearchParams();
-    if (searchQuery) params.set('q', searchQuery);
-    allBooks = await api('GET', `/api/books?${params}`);
+    const p = new URLSearchParams();
+    if (searchQuery) p.set('q', searchQuery);
+    allBooks = await api('GET', `/api/books?${p}`);
     renderGrid(filterBooks(allBooks));
-  } catch(e) { toast('Failed to load books', true); }
-  loading(false);
+  } catch { toast('Could not load books', true); }
+  spin(false);
 }
 
 async function loadStats() {
   try {
     const s = await api('GET', '/api/stats');
-    document.getElementById('stat-total').textContent    = s.total;
-    document.getElementById('stat-read').textContent     = s.read;
-    document.getElementById('stat-progress').textContent = s.in_progress;
-    document.getElementById('stat-unread').textContent   = s.unread;
-    const row = document.getElementById('top-tags-row');
-    row.innerHTML = s.top_tags.map(t =>
-      `<span class="tag-chip ${activeTag===t.name?'active':''}" onclick="filterByTag('${t.name}')">#${t.name} <span style="color:var(--muted)">${t.count}</span></span>`
+    document.getElementById('st-total').textContent  = s.total;
+    document.getElementById('st-read').textContent   = s.read;
+    document.getElementById('st-prog').textContent   = s.in_progress;
+    document.getElementById('st-unread').textContent = s.unread;
+    document.getElementById('top-tags').innerHTML = s.top_tags.map(t =>
+      `<span class="tag-chip ${activeTag===t.name?'active':''}" onclick="filterByTag('${x(t.name)}')">#${x(t.name)} <span style="color:var(--text3);font-weight:400">${t.count}</span></span>`
     ).join('');
-  } catch(e) {}
+  } catch {}
 }
 
 async function loadSidebar() {
-  // Categories
-  const cats = await api('GET', '/api/categories').catch(()=>[]);
-  const cl = document.getElementById('category-list');
-  cl.innerHTML = cats.map(c =>
-    `<a class="nav-item ${activeCategory===c?'active':''}" onclick="filterByCategory('${c}')">${c}</a>`
-  ).join('') || `<p class="text-xs px-2" style="color:var(--muted)">No categories yet</p>`;
-
-  // Tags
-  const tags = await api('GET', '/api/tags').catch(()=>[]);
-  const tl = document.getElementById('tag-list');
-  tl.innerHTML = tags.map(t =>
-    `<span class="tag-chip ${activeTag===t.name?'active':''}" onclick="filterByTag('${t.name}')">#${t.name}</span>`
-  ).join('') || `<p class="text-xs" style="color:var(--muted)">No tags yet</p>`;
+  const [cats, tags] = await Promise.all([
+    api('GET', '/api/categories').catch(()=>[]),
+    api('GET', '/api/tags').catch(()=>[]),
+  ]);
+  document.getElementById('category-list').innerHTML = cats.length
+    ? cats.map(c => `<div class="nav-item ${activeCategory===c?'active':''}" onclick="filterByCategory('${x(c)}')">${x(c)}</div>`).join('')
+    : `<p style="font-size:12px;color:var(--text3);padding:3px 6px">None yet</p>`;
+  document.getElementById('tag-list').innerHTML = tags.map(t =>
+    `<span class="tag-chip ${activeTag===t.name?'active':''}" onclick="filterByTag('${x(t.name)}')">#${x(t.name)}</span>`
+  ).join('') || `<p style="font-size:12px;color:var(--text3)">None yet</p>`;
 }
 
 async function loadLibraryPath() {
   const r = await api('GET', '/api/library-path').catch(()=>({path:''}));
-  const short = r.path.length > 32 ? '…' + r.path.slice(-30) : r.path;
-  document.getElementById('sidebar-path').textContent = short || 'Not configured';
+  const s = r.path.length > 36 ? '…' + r.path.slice(-34) : r.path;
+  document.getElementById('sidebar-path').textContent = s || 'Not configured';
   document.getElementById('settings-path').value = r.path;
 }
 
@@ -521,37 +740,30 @@ function filterBooks(books) {
 }
 
 function filterBy(key) {
-  currentFilter = key;
-  activeTag = null; activeCategory = null;
-  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-  const el = document.getElementById('nav-' + key);
-  if (el) el.classList.add('active');
-  const titles = {all:'All Books', reading:'In Progress', read:'Finished', pdf:'PDFs', epub:'EPUBs'};
-  document.getElementById('view-title').textContent = titles[key] || key;
+  currentFilter = key; activeTag = null; activeCategory = null;
+  document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
+  document.getElementById('nav-' + key)?.classList.add('active');
+  const labels = {all:'All Books',reading:'In Progress',read:'Finished',pdf:'PDFs',epub:'EPUBs'};
+  document.getElementById('view-title').textContent = labels[key] || key;
   renderGrid(filterBooks(allBooks));
   loadSidebar();
 }
 
 function filterByTag(tag) {
   activeTag = activeTag === tag ? null : tag;
-  renderGrid(filterBooks(allBooks));
-  loadSidebar();
-  loadStats();
+  renderGrid(filterBooks(allBooks)); loadSidebar(); loadStats();
 }
-
 function filterByCategory(cat) {
   activeCategory = activeCategory === cat ? null : cat;
-  renderGrid(filterBooks(allBooks));
-  loadSidebar();
+  renderGrid(filterBooks(allBooks)); loadSidebar();
 }
-
 function debounceSearch() {
-  clearTimeout(debounceTimer);
+  clearTimeout(_debTimer);
   searchQuery = document.getElementById('search-input').value;
-  debounceTimer = setTimeout(loadBooks, 300);
+  _debTimer = setTimeout(loadBooks, 300);
 }
 
-// ── Render ────────────────────────────────────────────────────────────────────
+// ── Grid render ────────────────────────────────────────────────────────────────
 function renderGrid(books) {
   const grid  = document.getElementById('books-grid');
   const empty = document.getElementById('empty-state');
@@ -559,239 +771,507 @@ function renderGrid(books) {
 
   if (!books.length) {
     grid.innerHTML = '';
-    empty.classList.remove('hidden');
-    empty.classList.add('flex');
+    empty.style.display = 'flex';
     return;
   }
-  empty.classList.add('hidden');
-  empty.classList.remove('flex');
+  empty.style.display = 'none';
 
   if (gridView) {
-    grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(160px, 1fr))';
-    grid.innerHTML = books.map(b => cardHTML(b)).join('');
+    // flex-wrap: cards are exactly 168px and never stretch
+    grid.className = 'card-grid';
+    grid.style.cssText = '';
+    grid.innerHTML = books.map(cardHTML).join('');
   } else {
-    grid.style.gridTemplateColumns = '1fr';
-    grid.innerHTML = books.map(b => listRowHTML(b)).join('');
+    grid.className = '';
+    grid.style.cssText = 'display:grid;gap:10px;grid-template-columns:1fr';
+    grid.innerHTML = books.map(listRowHTML).join('');
   }
 }
 
+// ── Card HTML ──────────────────────────────────────────────────────────────────
 function cardHTML(b) {
   const pct = b.progress || 0;
-  const cover = b.cover_path
-    ? `<img class="book-cover" src="/${b.cover_path}" loading="lazy" onerror="this.parentElement.innerHTML=placeholderHTML('${b.file_type}','${escHtml(b.title)}')">`
-    : placeholderHTML(b.file_type, b.title);
-  return `
-  <div class="book-card" onclick="openBook(${b.id})">
-    ${b.is_read ? '<span class="read-overlay">READ</span>' : ''}
-    <div style="position:relative">${cover}</div>
-    <div class="p-3">
-      <p class="text-xs font-semibold truncate mb-1" title="${escHtml(b.title)}">${escHtml(b.title)}</p>
-      <div class="flex items-center justify-between mb-2">
-        <span class="badge ${b.file_type==='pdf'?'blue':'accent'}">${b.file_type.toUpperCase()}</span>
-        <span class="text-xs" style="color:var(--muted)">${pct}%</span>
+
+  // Cover image or placeholder
+  const hasCover = !!b.cover_path;
+  const coverImg = hasCover
+    ? `<img src="/${x(b.cover_path)}" loading="lazy" alt="${x(b.title)}"
+         style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .4s ease"
+         onerror="this.style.display='none'">`
+    : '';
+  const placeholder = hasCover ? '' : coverPhInner(b.file_type);
+
+  // Category + tag badges (max 2 total for compactness)
+  const badgeParts = [];
+  if (b.category) badgeParts.push(`<span class="badge b-cat" style="font-size:10px;padding:1px 6px">${x(b.category)}</span>`);
+  const tagSlots = b.category ? 1 : 2;
+  b.tags.slice(0, tagSlots).forEach(t => {
+    badgeParts.push(`<span class="badge b-tag" style="font-size:10px;padding:1px 6px">#${x(t)}</span>`);
+  });
+
+  return `<div class="book-card" onclick="openModal(${b.id})">
+
+    <!-- COVER — 2:3 ratio, takes bulk of card -->
+    <div class="card-cover-wrap">
+      ${coverImg}
+      ${placeholder}
+      ${b.is_read ? '<span class="read-ribbon">Read</span>' : ''}
+      <!-- Hover overlay: calls openFile directly, stops propagation so modal does not open -->
+      <div class="card-hover-overlay" onclick="event.stopPropagation();openFile(${b.id})"><span>Open File</span></div>
+    </div>
+
+    <!-- BODY — title, badges, progress bar stacked vertically -->
+    <div class="card-body">
+
+      <p class="card-title" title="${x(b.title)}">${x(b.title)}</p>
+
+      <div class="card-badge-row">
+        ${badgeParts.join('')}
       </div>
-      <div class="progress-bar">
-        <div class="progress-fill" style="width:${pct}%"></div>
+
+      <div class="card-progress">
+        <div class="card-progress-meta">
+          <span class="card-progress-pct">${pct}%</span>
+          ${b.total_pages ? `<span class="card-progress-pct">${b.current_page}/${b.total_pages}p</span>` : ''}
+        </div>
+        <div class="pbar"><div class="pbar-fill" style="width:${pct}%"></div></div>
       </div>
+
     </div>
   </div>`;
 }
 
 function listRowHTML(b) {
   const pct = b.progress || 0;
-  const cover = b.cover_path
-    ? `<img src="/${b.cover_path}" style="width:50px;height:70px;object-fit:cover;border-radius:6px;" onerror="this.style.display='none'">`
-    : `<div style="width:50px;height:70px;border-radius:6px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:18px">📖</div>`;
-  return `
-  <div class="book-card flex items-center gap-4 p-4" onclick="openBook(${b.id})">
-    ${cover}
-    <div class="flex-1 min-w-0">
-      <p class="font-semibold truncate mb-1">${escHtml(b.title)}</p>
-      <div class="flex gap-2 flex-wrap mb-2">
-        <span class="badge ${b.file_type==='pdf'?'blue':'accent'}">${b.file_type.toUpperCase()}</span>
-        ${b.is_read ? '<span class="badge green">READ</span>' : ''}
-        ${b.tags.slice(0,3).map(t=>`<span class="badge accent">#${t}</span>`).join('')}
-      </div>
-      <div class="flex items-center gap-3">
-        <div class="progress-bar flex-1"><div class="progress-fill" style="width:${pct}%"></div></div>
-        <span class="text-xs" style="color:var(--muted); white-space:nowrap">${pct}% ${b.total_pages?`· p.${b.current_page}/${b.total_pages}`:''}</span>
+  const coverEl = b.cover_path
+    ? `<img src="/${x(b.cover_path)}" style="width:46px;height:65px;object-fit:cover;border-radius:7px;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.4)"
+         onerror="this.style.display='none'">`
+    : `<div style="width:46px;height:65px;background:var(--surf2);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${b.file_type==='epub'?'📖':'📄'}</div>`;
+
+  let bgs = '';
+  if (b.category) bgs += `<span class="badge b-cat">${x(b.category)}</span>`;
+  b.tags.slice(0,3).forEach(t => { bgs += `<span class="badge b-tag">#${x(t)}</span>`; });
+  if (b.is_read)  bgs += `<span class="badge b-read">Read</span>`;
+
+  return `<div class="list-row" onclick="openModal(${b.id})">
+    ${coverEl}
+    <div style="flex:1;min-width:0">
+      <p style="font-size:14px;font-weight:600;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x(b.title)}</p>
+      ${bgs ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:7px">${bgs}</div>` : ''}
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="pbar" style="flex:1"><div class="pbar-fill" style="width:${pct}%"></div></div>
+        <span class="pbar-label">${pct}%</span>
       </div>
     </div>
   </div>`;
 }
 
-function placeholderHTML(type, title) {
+function coverPhInner(type) {
   const icon = type === 'epub' ? '📖' : '📄';
-  return `<div class="cover-placeholder"><span style="font-size:36px">${icon}</span><p class="text-xs text-center px-2" style="color:var(--muted); line-height:1.3">${escHtml(title.slice(0,40))}</p></div>`;
+  // Must fill the aspect-ratio container absolutely
+  return `<div style="position:absolute;inset:0;background:linear-gradient(155deg,var(--surf2) 0%,#12121a 100%);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px">
+    <span style="font-size:38px;opacity:.5">${icon}</span>
+  </div>`;
 }
 
-// ── Book Modal ────────────────────────────────────────────────────────────────
-async function openBook(id) {
-  currentBookId = id;
-  const b = await api('GET', `/api/books/${id}`);
+// ── Modal ──────────────────────────────────────────────────────────────────────
+async function openModal(id) {
+  _activeTab = 'details';
+  const [book, logs] = await Promise.all([
+    api('GET', `/api/books/${id}`),
+    api('GET', `/api/books/${id}/progress`),
+  ]);
+  _book = book; _logs = logs;
+  renderModal();
+  document.getElementById('modal-overlay').classList.add('open');
+  document.body.classList.add('modal-open');  // scroll lock
+}
 
-  const cover = b.cover_path
-    ? `<img src="/${b.cover_path}" style="width:140px;min-width:140px;height:210px;object-fit:cover;border-radius:10px;">`
-    : `<div style="width:140px;min-width:140px;height:210px;background:var(--surface2);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:48px">${b.file_type==='epub'?'📖':'📄'}</div>`;
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  document.body.classList.remove('modal-open');
+  _book = null; _logs = [];
+}
 
-  const tagsStr = b.tags.join(', ');
+function overlayClick(e) {
+  if (e.target === document.getElementById('modal-overlay')) closeModal();
+}
 
-  document.getElementById('modal-content').innerHTML = `
-    <div style="flex-shrink:0">${cover}</div>
-    <div class="flex-1 min-w-0 space-y-4">
+function renderModal() {
+  const b = _book;
+  if (!b) return;
+
+  // ── Header ──
+  const coverEl = b.cover_path
+    ? `<img src="/${x(b.cover_path)}" alt="${x(b.title)}"
+         onerror="this.outerHTML='<div class=\'modal-cover-ph\'>${b.file_type==='epub'?'📖':'📄'}</div>'">`
+    : `<div class="modal-cover-ph">${b.file_type==='epub'?'📖':'📄'}</div>`;
+
+  document.getElementById('modal-header').innerHTML = `
+  <div style="display:flex;gap:20px;align-items:flex-start">
+    <div class="modal-cover-wrap">
+      ${coverEl}
+      <button class="cover-edit-btn" onclick="triggerCoverUpload()">
+        <svg style="width:10px;height:10px;display:inline;margin-right:3px" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+        Cover
+      </button>
+    </div>
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px">
+        <h2 class="serif" style="font-size:18px;line-height:1.25">${x(b.title)}</h2>
+        <button onclick="closeModal()" class="btn btn-icon btn-ghost" style="flex-shrink:0;color:var(--text3)">✕</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px">
+        ${b.category ? `<span class="badge b-cat">${x(b.category)}</span>` : ''}
+        ${b.tags.map(t=>`<span class="badge b-tag">#${x(t)}</span>`).join('')}
+        ${b.is_read ? '<span class="badge b-read">Finished</span>' : ''}
+        ${b.total_pages ? `<span class="badge b-dim">${b.total_pages}p</span>` : ''}
+      </div>
+      <div class="pbar" style="margin-bottom:5px"><div class="pbar-fill" style="width:${b.progress}%"></div></div>
+      <p class="pbar-label" style="margin-bottom:14px">${b.progress}% · page ${b.current_page}${b.total_pages?' of '+b.total_pages:''}</p>
+      <button class="btn btn-open" onclick="openFile(${b.id})">
+        <svg style="width:15px;height:15px" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+        Open File${b.file_type==='pdf' && b.current_page>1 ? ` · p.${b.current_page}` : ''}
+      </button>
+    </div>
+  </div>`;
+
+  // ── Tabs ──
+  const tabDefs = [{key:'details',label:'Details'},{key:'timeline',label:'Timeline'},{key:'admin',label:'Admin Notes'}];
+  document.getElementById('modal-body').innerHTML =
+    `<div class="tab-bar">${tabDefs.map(t=>`<div class="tab ${_activeTab===t.key?'active':''}" onclick="switchTab('${t.key}')">${t.label}</div>`).join('')}</div>
+     <div id="tab-content"></div>`;
+  renderTab();
+}
+
+function switchTab(key) {
+  _activeTab = key;
+  document.querySelectorAll('.tab').forEach((el,i) => {
+    const keys = ['details','timeline','admin'];
+    el.classList.toggle('active', keys[i] === key);
+  });
+  renderTab();
+}
+
+function renderTab() {
+  const b   = _book;
+  const el  = document.getElementById('tab-content');
+  if (!el || !b) return;
+
+  if (_activeTab === 'details') {
+    el.innerHTML = `
+    <div style="margin-bottom:18px">
+      <div class="sec-title">Display Title</div>
+      <input id="e-title" class="field" value="${x(b.custom_title || b.title)}" placeholder="Book title…"/>
+      <p style="font-size:11px;color:var(--text3);margin-top:4px">Overrides the auto-extracted metadata title.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
       <div>
-        <div class="flex items-start justify-between gap-2 mb-1">
-          <h2 class="font-serif text-xl leading-snug">${escHtml(b.title)}</h2>
-          <button onclick="closeModal()" style="color:var(--muted); flex-shrink:0">✕</button>
-        </div>
-        <div class="flex flex-wrap gap-2 mb-3">
-          <span class="badge ${b.file_type==='pdf'?'blue':'accent'}">${b.file_type.toUpperCase()}</span>
-          ${b.is_read?'<span class="badge green">Finished</span>':''}
-          ${b.total_pages?`<span class="badge">${b.total_pages} pages</span>`:''}
-          ${b.category?`<span class="badge">${escHtml(b.category)}</span>`:''}
-        </div>
-        <div class="progress-bar mb-1"><div class="progress-fill" style="width:${b.progress}%"></div></div>
-        <p class="text-xs" style="color:var(--muted)">${b.progress}% complete${b.total_pages?` · Page ${b.current_page} of ${b.total_pages}`:''}</p>
-      </div>
-
-      <!-- Edit fields -->
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="text-xs block mb-1" style="color:var(--muted)">Current Page</label>
-          <input id="edit-page" type="number" min="0" max="${b.total_pages||9999}" class="input-field" value="${b.current_page}" placeholder="0"/>
-        </div>
-        <div>
-          <label class="text-xs block mb-1" style="color:var(--muted)">Category</label>
-          <input id="edit-category" class="input-field" value="${escHtml(b.category||'')}" placeholder="Fiction, Tech…"/>
-        </div>
+        <div class="sec-title">Current Page</div>
+        <input id="e-page" type="number" min="0" max="${b.total_pages||99999}" class="field" value="${b.current_page}"/>
       </div>
       <div>
-        <label class="text-xs block mb-1" style="color:var(--muted)">Tags (comma-separated)</label>
-        <input id="edit-tags" class="input-field" value="${escHtml(tagsStr)}" placeholder="science, history…"/>
+        <div class="sec-title">Category</div>
+        <input id="e-category" class="field" value="${x(b.category||'')}" placeholder="Fiction, Tech…"/>
       </div>
-      <div>
-        <label class="text-xs block mb-1" style="color:var(--muted)">Notes</label>
-        <textarea id="edit-notes" class="input-field">${escHtml(b.notes||'')}</textarea>
-      </div>
-
-      <!-- Actions -->
-      <div class="flex flex-wrap gap-2 pt-1">
-        <button class="btn btn-primary" onclick="saveBookEdits(${b.id})">
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-          Save
-        </button>
-        <button class="btn btn-ghost" onclick="openFile(${b.id})">
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-          Open File
-        </button>
-        <button class="btn btn-ghost" onclick="toggleRead(${b.id}, ${b.is_read})">
-          ${b.is_read ? 'Mark Unread' : 'Mark as Read'}
-        </button>
-        <button class="btn btn-danger" onclick="deleteBook(${b.id})">
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-          Remove
-        </button>
-      </div>
-      ${b.last_opened?`<p class="text-xs" style="color:var(--muted)">Last opened: ${new Date(b.last_opened).toLocaleDateString()}</p>`:''}
+    </div>
+    <div style="margin-bottom:16px">
+      <div class="sec-title">Tags</div>
+      <input id="e-tags" class="field" value="${x(b.tags.join(', '))}" placeholder="sci-fi, reference…"/>
+    </div>
+    <div style="margin-bottom:18px">
+      <div class="sec-title">Reader Notes</div>
+      <textarea id="e-notes" class="field">${x(b.notes||'')}</textarea>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+      <button class="btn btn-primary" onclick="saveDetails()">
+        <svg style="width:13px;height:13px" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+        Save Changes
+      </button>
+      <button class="btn btn-ghost" onclick="toggleRead(${b.id}, ${b.is_read})">${b.is_read?'Mark Unread':'✓ Mark as Read'}</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteBook(${b.id})">Remove</button>
+      ${b.last_opened?`<span style="font-size:11px;color:var(--text3);margin-left:auto">Opened ${fmtDate(b.last_opened)}</span>`:''}
     </div>`;
 
-  document.getElementById('modal-overlay').classList.add('open');
-}
+  } else if (_activeTab === 'timeline') {
+    let tlHTML = '';
+    if (b.date_started) {
+      tlHTML += tlItem('tl-start', b.date_started, 'Started reading', null, null);
+    }
+    _logs.forEach(l => {
+      tlHTML += tlItem('tl-log', l.timestamp, l.note || `Page ${l.page}`, l.id, l.page);
+    });
+    if (b.is_read || b.date_finished) {
+      tlHTML += tlItem('tl-end', b.date_finished || b.last_opened || '', 'Finished ✓', null, null);
+    }
 
-function closeModal(e) {
-  if (!e || e.target === document.getElementById('modal-overlay')) {
-    document.getElementById('modal-overlay').classList.remove('open');
+    el.innerHTML = `
+    <div style="margin-bottom:20px">
+      <div class="sec-title">Reading Dates</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div>
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">Started</label>
+          <input id="e-started"  type="date" class="field" value="${b.date_started  ? b.date_started.slice(0,10)  : ''}"/>
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:5px">Finished</label>
+          <input id="e-finished" type="date" class="field" value="${b.date_finished ? b.date_finished.slice(0,10) : ''}"/>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="saveDates()">Save Dates</button>
+    </div>
+
+    <div style="margin-bottom:20px">
+      <div class="sec-title">Progress Timeline</div>
+      ${tlHTML
+        ? `<div class="timeline">${tlHTML}</div>`
+        : `<p style="font-size:13px;color:var(--text3)">No progress logged yet.</p>`}
+    </div>
+
+    <div>
+      <div class="sec-title">Log a Progress Update</div>
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <div>
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Page</label>
+          <input id="log-page" type="number" min="0" max="${b.total_pages||99999}" class="field" value="${b.current_page}" style="width:90px"/>
+        </div>
+        <div style="flex:1">
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Note (optional)</label>
+          <input id="log-note" class="field" placeholder="e.g. Finished chapter 5"/>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="logProgress()" style="flex-shrink:0;margin-bottom:1px">Log</button>
+      </div>
+    </div>`;
+
+  } else {
+    el.innerHTML = `
+    <div style="margin-bottom:16px">
+      <div class="sec-title">Maintenance / Admin Notes</div>
+      <textarea id="e-admin" class="field" style="min-height:130px">${x(b.admin_notes||'')}</textarea>
+      <p style="font-size:11px;color:var(--text3);margin-top:5px;line-height:1.5">Private notes — "Fix cover", "Wrong metadata", etc. Not visible on the main grid.</p>
+    </div>
+    <button class="btn btn-primary" onclick="saveAdminNotes()">
+      <svg style="width:13px;height:13px" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+      Save Notes
+    </button>`;
   }
 }
 
-async function saveBookEdits(id) {
-  const page     = parseInt(document.getElementById('edit-page').value) || 0;
-  const category = document.getElementById('edit-category').value.trim();
-  const notes    = document.getElementById('edit-notes').value.trim();
-  const tagsRaw  = document.getElementById('edit-tags').value;
-  const tags     = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
+function tlItem(cls, ts, text, logId, page) {
+  const deleteBtn = logId
+    ? `<button onclick="deleteLog(${logId})" style="font-size:10px;color:var(--text3);background:none;border:none;cursor:pointer;margin-left:6px;transition:color .14s" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">✕</button>`
+    : '';
+  const editArea = logId
+    ? `<div class="tl-edit-row">
+         <input class="field tl-note-input" style="font-size:12px;padding:5px 9px" value="${x(text)}" id="tl-note-${logId}"/>
+         <button class="btn btn-ghost btn-sm" onclick="saveLogNote(${logId})">Save</button>
+       </div>`
+    : '';
+  return `<div class="tl-item ${cls}">
+    <div class="tl-dot"></div>
+    <div class="tl-date">${ts ? fmtDate(ts) : '—'}${deleteBtn}</div>
+    ${editArea || `<div class="tl-text">${x(text)}</div>`}
+  </div>`;
+}
+
+// ── Modal actions ──────────────────────────────────────────────────────────────
+async function saveDetails() {
+  const b = _book;
+  const newPage  = parseInt(document.getElementById('e-page').value) || 0;
+  const prevPage = b.current_page;
+  const custom   = document.getElementById('e-title').value.trim();
+  const tags     = document.getElementById('e-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
+  const category = document.getElementById('e-category').value.trim();
+  const notes    = document.getElementById('e-notes').value.trim();
+
+  // Build payload — include auto-date hints and log_progress flag
+  const payload = {
+    custom_title:  custom !== b.original_title ? custom : null,
+    current_page:  newPage,
+    category, notes, tags,
+    log_progress:  newPage !== prevPage,
+  };
+
+  // Client-side auto-date logic before send
+  if (newPage > 0 && prevPage === 0 && !b.date_started) {
+    payload.date_started = new Date().toISOString();
+  }
+  if (b.total_pages && newPage >= b.total_pages && !b.date_finished) {
+    payload.date_finished = new Date().toISOString();
+    payload.is_read = true;
+  }
 
   try {
-    await api('PATCH', `/api/books/${id}`, { current_page: page, category, notes, tags });
+    _book = await api('PUT', `/api/books/${b.id}`, payload);
+    // Reload logs since a new one may have been created
+    _logs = await api('GET', `/api/books/${b.id}/progress`);
+    renderModal();
     toast('Saved!');
-    document.getElementById('modal-overlay').classList.remove('open');
     loadBooks(); loadStats(); loadSidebar();
-  } catch(e) { toast('Save failed', true); }
+  } catch { toast('Save failed', true); }
+}
+
+async function saveAdminNotes() {
+  try {
+    _book = await api('PUT', `/api/books/${_book.id}`, { admin_notes: document.getElementById('e-admin').value.trim() });
+    toast('Admin notes saved');
+  } catch { toast('Save failed', true); }
+}
+
+async function saveDates() {
+  const ds = document.getElementById('e-started').value;
+  const df = document.getElementById('e-finished').value;
+  try {
+    _book = await api('PUT', `/api/books/${_book.id}`, { date_started: ds||'', date_finished: df||'' });
+    _logs = await api('GET', `/api/books/${_book.id}/progress`);
+    renderModal(); switchTab('timeline');
+    toast('Dates saved');
+  } catch { toast('Save failed', true); }
+}
+
+async function logProgress() {
+  const page = parseInt(document.getElementById('log-page').value);
+  const note = document.getElementById('log-note').value.trim();
+  if (isNaN(page) || page < 0) { toast('Enter a valid page', true); return; }
+  try {
+    const log = await api('POST', `/api/books/${_book.id}/progress`, { page, note });
+    _logs.push(log);
+    _book = await api('GET', `/api/books/${_book.id}`);
+    renderModal(); switchTab('timeline');
+    toast(`Logged: page ${page}`);
+    loadBooks();
+  } catch { toast('Log failed', true); }
+}
+
+async function saveLogNote(logId) {
+  const val = document.getElementById(`tl-note-${logId}`)?.value?.trim() || '';
+  try {
+    const updated = await api('PATCH', `/api/books/${_book.id}/progress/${logId}`, { note: val });
+    const idx = _logs.findIndex(l => l.id === logId);
+    if (idx !== -1) _logs[idx] = updated;
+    renderTab();
+    toast('Note updated');
+  } catch { toast('Update failed', true); }
+}
+
+async function deleteLog(logId) {
+  try {
+    await api('DELETE', `/api/books/${_book.id}/progress/${logId}`);
+    _logs = _logs.filter(l => l.id !== logId);
+    _book = await api('GET', `/api/books/${_book.id}`);
+    renderModal(); switchTab('timeline');
+    toast('Entry removed');
+  } catch { toast('Delete failed', true); }
 }
 
 async function openFile(id) {
   try {
     await api('POST', `/api/books/${id}/open`);
     toast('Opening file…');
-  } catch(e) { toast('Could not open file', true); }
+  } catch { toast('Could not open file', true); }
 }
 
 async function toggleRead(id, isRead) {
-  await api('PATCH', `/api/books/${id}`, { is_read: !isRead });
-  toast(isRead ? 'Marked as unread' : '✓ Marked as read');
-  closeModal();
-  loadBooks(); loadStats();
+  const payload = { is_read: !isRead };
+  if (!isRead) payload.date_finished = new Date().toISOString();
+  try {
+    _book = await api('PUT', `/api/books/${id}`, payload);
+    _logs = await api('GET', `/api/books/${id}/progress`);
+    renderModal();
+    toast(isRead ? 'Marked as unread' : '✓ Marked as finished');
+    loadBooks(); loadStats();
+  } catch { toast('Update failed', true); }
 }
 
 async function deleteBook(id) {
-  if (!confirm('Remove this book from the library? (The file will not be deleted.)')) return;
+  if (!confirm('Remove this book from the library? (The file on disk is NOT deleted.)')) return;
   await api('DELETE', `/api/books/${id}`);
   toast('Book removed');
   closeModal();
-  loadBooks(); loadStats(); loadSidebar();
+  loadAll();
+}
+
+// ── Cover upload ───────────────────────────────────────────────────────────────
+function triggerCoverUpload() {
+  document.getElementById('cover-file-input').value = '';
+  document.getElementById('cover-file-input').click();
+}
+
+async function handleCoverUpload(e) {
+  const file = e.target.files[0];
+  if (!file || !_book) return;
+
+  const fd = new FormData();
+  fd.append('file', file);
+
+  try {
+    toast('Uploading cover…');
+    _book = await apiForm('POST', `/api/books/${_book.id}/cover`, fd);
+    _logs = await api('GET', `/api/books/${_book.id}/progress`);
+    renderModal();
+    // Refresh the card in the grid too
+    const idx = allBooks.findIndex(b => b.id === _book.id);
+    if (idx !== -1) allBooks[idx] = _book;
+    renderGrid(filterBooks(allBooks));
+    toast('Cover updated!');
+  } catch (err) {
+    toast('Cover upload failed: ' + (err.message || 'unknown error'), true);
+  }
 }
 
 // ── Settings ───────────────────────────────────────────────────────────────────
 function openSettings() {
-  document.getElementById('settings-overlay').classList.remove('hidden');
-  document.getElementById('settings-overlay').classList.add('flex');
+  document.getElementById('settings-overlay').classList.add('open');
 }
 function closeSettings() {
-  document.getElementById('settings-overlay').classList.remove('flex');
-  document.getElementById('settings-overlay').classList.add('hidden');
+  document.getElementById('settings-overlay').classList.remove('open');
+}
+function settingsOverlayClick(e) {
+  if (e.target === document.getElementById('settings-overlay')) closeSettings();
 }
 async function saveSettings() {
   const path = document.getElementById('settings-path').value.trim();
   try {
     await api('POST', '/api/library-path', { path });
-    toast('Library path saved. Scanning…');
-    closeSettings();
-    loadLibraryPath();
-    setTimeout(() => { loadBooks(); loadStats(); loadSidebar(); }, 2000);
-  } catch(e) { toast('Invalid path', true); }
+    toast('Saved. Scanning…');
+    closeSettings(); loadLibraryPath();
+    setTimeout(loadAll, 2500);
+  } catch { toast('Invalid path', true); }
+}
+
+async function rescan() {
+  toast('Rescanning…');
+  await api('POST', '/api/rescan');
+  setTimeout(loadAll, 3000);
 }
 
 // ── Misc ───────────────────────────────────────────────────────────────────────
-async function rescan() {
-  toast('Rescanning library…');
-  await api('POST', '/api/rescan');
-  setTimeout(() => { loadBooks(); loadStats(); loadSidebar(); }, 3000);
-}
-
 function toggleView() {
   gridView = !gridView;
-  document.getElementById('view-icon-grid').classList.toggle('hidden', !gridView);
-  document.getElementById('view-icon-list').classList.toggle('hidden', gridView);
+  document.getElementById('icon-grid').style.display = gridView ? 'block' : 'none';
+  document.getElementById('icon-list').style.display = gridView ? 'none' : 'block';
   renderGrid(filterBooks(allBooks));
 }
 
-function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('open');
+function fmtDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-US', {year:'numeric',month:'short',day:'numeric'});
 }
 
-function escHtml(str) {
-  return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+/** HTML-escape */
+function x(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-let toastTimer;
+let _toastTimer;
 function toast(msg, err=false) {
   const el = document.getElementById('toast');
   el.textContent = msg;
-  el.style.borderColor = err ? 'var(--red)' : 'var(--accent)';
-  el.style.color = err ? 'var(--red)' : 'var(--text)';
+  el.style.borderColor  = err ? 'rgba(232,96,96,.35)' : 'rgba(200,167,106,.3)';
+  el.style.color        = err ? 'var(--red)' : 'var(--text)';
   el.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
 }
 </script>
 </body>
