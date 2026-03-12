@@ -1,5 +1,6 @@
 """
-main.py — FastAPI application for Local Library Manager.
+main.py — FastAPI application for Local Library Manager. v3.
+New: custom cover upload, page-aware file open, auto-date logic, log note editing.
 """
 
 import os
@@ -22,10 +23,10 @@ from PIL import Image
 
 import database as db
 from database import (
-    Book, Tag, BookTagLink, ProgressLog,
+    Book, Tag, BookTagLink, ProgressLog, BookQuote,
     create_db_and_tables, get_session,
     get_or_create_tag, get_all_books, get_book_by_path, get_stats,
-    get_progress_logs, add_progress_log,
+    get_progress_logs, add_progress_log, get_quotes,
     engine,
 )
 from scanner import scan_library, start_watchdog
@@ -95,6 +96,10 @@ class ProgressLogIn(BaseModel):
 
 class ProgressLogNoteUpdate(BaseModel):
     note: str
+
+class QuoteIn(BaseModel):
+    quote_text:  str
+    page_number: Optional[int] = None
 
 class LibraryPathIn(BaseModel):
     path: str
@@ -399,6 +404,53 @@ def set_library_path(data: LibraryPathIn):
 def rescan():
     lib = load_library_path()
     threading.Thread(target=scan_library, args=(lib,), daemon=True).start()
+    return {"ok": True}
+
+
+# ── Quote endpoints ────────────────────────────────────────────────────────────
+
+def quote_to_out(q: BookQuote) -> dict:
+    return {
+        "id":          q.id,
+        "book_id":     q.book_id,
+        "quote_text":  q.quote_text,
+        "page_number": q.page_number,
+        "date_added":  q.date_added.isoformat(),
+    }
+
+
+@app.get("/api/books/{book_id}/quotes")
+def list_quotes(book_id: int, session: Session = Depends(get_session)):
+    if not session.get(Book, book_id):
+        raise HTTPException(404, "Book not found")
+    return [quote_to_out(q) for q in get_quotes(session, book_id)]
+
+
+@app.post("/api/books/{book_id}/quotes")
+def add_quote(book_id: int, data: QuoteIn, session: Session = Depends(get_session)):
+    if not session.get(Book, book_id):
+        raise HTTPException(404, "Book not found")
+    if not data.quote_text.strip():
+        raise HTTPException(400, "Quote text cannot be empty")
+
+    quote = BookQuote(
+        book_id     = book_id,
+        quote_text  = data.quote_text.strip(),
+        page_number = data.page_number,
+    )
+    session.add(quote)
+    session.commit()
+    session.refresh(quote)
+    return quote_to_out(quote)
+
+
+@app.delete("/api/books/{book_id}/quotes/{quote_id}")
+def delete_quote(book_id: int, quote_id: int, session: Session = Depends(get_session)):
+    quote = session.get(BookQuote, quote_id)
+    if not quote or quote.book_id != book_id:
+        raise HTTPException(404, "Quote not found")
+    session.delete(quote)
+    session.commit()
     return {"ok": True}
 
 

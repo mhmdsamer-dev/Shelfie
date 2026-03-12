@@ -45,9 +45,13 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-ser
 .serif { font-family: 'Libre Baskerville', serif; }
 .mono  { font-family: var(--mono); }
 
-::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border2); }
+/* Sidebar nav specifically */
+#sidebar nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.07); }
+#sidebar nav::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.13); }
 
 /* ══════════════════════════════════════════
    LAYOUT
@@ -55,9 +59,11 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-ser
 #sidebar {
   background: var(--surf);
   border-right: 1px solid var(--border);
-  width: 248px; min-height: 100vh;
+  width: 248px;
+  height: 100vh;          /* exact viewport height */
   position: fixed; top: 0; left: 0;
   display: flex; flex-direction: column;
+  overflow: hidden;        /* children handle their own scroll */
   z-index: 50;
   transition: transform .25s cubic-bezier(.4,0,.2,1);
 }
@@ -110,7 +116,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-ser
 .s-dim::before   { background: linear-gradient(90deg, var(--border2), transparent); }
 
 /* ══════════════════════════════════════════
-   BOOK CARDS — True Vertical Book Card
+   BOOK CARDS — v4 True Vertical Book Card
 ══════════════════════════════════════════ */
 
 /* Grid container: flex-wrap so cards never stretch */
@@ -245,6 +251,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-ser
   color: var(--text);
   /* Clamp to 2 lines */
   display: -webkit-box;
+  line-clamp: 2;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
@@ -490,6 +497,71 @@ body.modal-open { overflow: hidden; }
   justify-content: center; padding: 80px 20px; text-align: center;
 }
 
+/* ══════════════════════════════════════════
+   QUOTES
+══════════════════════════════════════════ */
+.quote-item {
+  padding: 12px 14px;
+  background: var(--surf2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 10px;
+  transition: border-color .15s;
+  position: relative;
+}
+.quote-item:last-child { margin-bottom: 0; }
+.quote-item:hover { border-color: var(--border2); }
+
+/* Left accent bar */
+.quote-item::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 10px; bottom: 10px;
+  width: 3px;
+  background: var(--gold);
+  border-radius: 0 3px 3px 0;
+  opacity: .55;
+}
+
+.quote-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+  font-style: italic;
+  margin-bottom: 8px;
+  padding-left: 4px;
+}
+
+.quote-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.quote-date {
+  font-size: 10.5px;
+  color: var(--text3);
+  font-family: var(--mono);
+}
+
+.quote-del {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text3);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: color .14s, background .14s;
+}
+.quote-del:hover {
+  color: var(--red);
+  background: var(--red-dim);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   #sidebar { transform: translateX(-100%); }
@@ -655,7 +727,7 @@ body.modal-open { overflow: hidden; }
 // ── State ──────────────────────────────────────────────────────────────────────
 let allBooks = [], currentFilter = 'all', activeTag = null, activeCategory = null;
 let searchQuery = '', gridView = true, _debTimer;
-let _book = null, _logs = [], _activeTab = 'details';
+let _book = null, _logs = [], _quotes = [], _activeTab = 'details';
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -877,11 +949,12 @@ function coverPhInner(type) {
 // ── Modal ──────────────────────────────────────────────────────────────────────
 async function openModal(id) {
   _activeTab = 'details';
-  const [book, logs] = await Promise.all([
+  const [book, logs, quotes] = await Promise.all([
     api('GET', `/api/books/${id}`),
     api('GET', `/api/books/${id}/progress`),
+    api('GET', `/api/books/${id}/quotes`),
   ]);
-  _book = book; _logs = logs;
+  _book = book; _logs = logs; _quotes = quotes;
   renderModal();
   document.getElementById('modal-overlay').classList.add('open');
   document.body.classList.add('modal-open');  // scroll lock
@@ -890,7 +963,7 @@ async function openModal(id) {
 function closeModal() {
   document.getElementById('modal-overlay').classList.remove('open');
   document.body.classList.remove('modal-open');
-  _book = null; _logs = [];
+  _book = null; _logs = []; _quotes = [];
 }
 
 function overlayClick(e) {
@@ -937,7 +1010,7 @@ function renderModal() {
   </div>`;
 
   // ── Tabs ──
-  const tabDefs = [{key:'details',label:'Details'},{key:'timeline',label:'Timeline'},{key:'admin',label:'Admin Notes'}];
+  const tabDefs = [{key:'details',label:'Details'},{key:'timeline',label:'Timeline'},{key:'quotes',label:'Quotes'},{key:'admin',label:'Admin Notes'}];
   document.getElementById('modal-body').innerHTML =
     `<div class="tab-bar">${tabDefs.map(t=>`<div class="tab ${_activeTab===t.key?'active':''}" onclick="switchTab('${t.key}')">${t.label}</div>`).join('')}</div>
      <div id="tab-content"></div>`;
@@ -947,7 +1020,7 @@ function renderModal() {
 function switchTab(key) {
   _activeTab = key;
   document.querySelectorAll('.tab').forEach((el,i) => {
-    const keys = ['details','timeline','admin'];
+    const keys = ['details','timeline','quotes','admin'];
     el.classList.toggle('active', keys[i] === key);
   });
   renderTab();
@@ -1040,6 +1113,39 @@ function renderTab() {
           <input id="log-note" class="field" placeholder="e.g. Finished chapter 5"/>
         </div>
         <button class="btn btn-primary btn-sm" onclick="logProgress()" style="flex-shrink:0;margin-bottom:1px">Log</button>
+      </div>
+    </div>`;
+
+  } else if (_activeTab === 'quotes') {
+    const quotes = _quotes;
+    const quotesHTML = quotes.length ? quotes.map(q => `
+      <div class="quote-item" id="qi-${q.id}">
+        <div class="quote-body">
+          <p class="quote-text">${x(q.quote_text)}</p>
+          <div class="quote-meta">
+            ${q.page_number ? `<span class="badge b-dim" style="font-size:10px">p.${q.page_number}</span>` : ''}
+            <span class="quote-date">${fmtDate(q.date_added)}</span>
+            <button onclick="deleteQuote(${q.id})" class="quote-del" title="Delete quote">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>`).join('') : `<p style="font-size:13px;color:var(--text3);padding:4px 0">No quotes saved yet.</p>`;
+
+    el.innerHTML = `
+    <div style="margin-bottom:20px">
+      <div class="sec-title">Saved Quotes <span style="color:var(--text3);font-weight:400;font-size:10px">(${quotes.length})</span></div>
+      <div id="quotes-list">${quotesHTML}</div>
+    </div>
+    <div>
+      <div class="sec-title">Add a Quote</div>
+      <textarea id="q-text" class="field" style="min-height:80px;margin-bottom:8px" placeholder="Paste or type a quote from the book…"></textarea>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="q-page" type="number" min="1" class="field" style="width:110px" placeholder="Page (opt.)"/>
+        <button class="btn btn-primary" onclick="addQuote()" style="flex-shrink:0">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+          Add Quote
+        </button>
       </div>
     </div>`;
 
@@ -1261,6 +1367,34 @@ function fmtDate(iso) {
 /** HTML-escape */
 function x(s) {
   return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ── Quotes ────────────────────────────────────────────────────────────────────
+async function addQuote() {
+  const text = (document.getElementById('q-text')?.value || '').trim();
+  const page = parseInt(document.getElementById('q-page')?.value) || null;
+  if (!text) { toast('Quote text cannot be empty', true); return; }
+
+  try {
+    const q = await api('POST', `/api/books/${_book.id}/quotes`, { quote_text: text, page_number: page });
+    _quotes.push(q);
+    renderTab();           // re-render quotes tab in place
+    // clear inputs
+    const ta = document.getElementById('q-text');
+    const pg = document.getElementById('q-page');
+    if (ta) ta.value = '';
+    if (pg) pg.value = '';
+    toast('Quote saved');
+  } catch { toast('Could not save quote', true); }
+}
+
+async function deleteQuote(quoteId) {
+  try {
+    await api('DELETE', `/api/books/${_book.id}/quotes/${quoteId}`);
+    _quotes = _quotes.filter(q => q.id !== quoteId);
+    renderTab();
+    toast('Quote removed');
+  } catch { toast('Could not delete quote', true); }
 }
 
 let _toastTimer;

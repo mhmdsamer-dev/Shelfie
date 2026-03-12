@@ -1,10 +1,15 @@
 """
 database.py — SQLModel models and database initialization for Local Library Manager.
+v4: adds BookQuote table with safe migration (zero data loss).
 """
 
+import logging
 from datetime import datetime
 from typing import Optional, List
 from sqlmodel import Field, SQLModel, create_engine, Session, select, Relationship
+from sqlalchemy import text
+
+logger = logging.getLogger("database")
 
 DATABASE_URL = "sqlite:///./library.db"
 engine = create_engine(DATABASE_URL, echo=False, connect_args={"check_same_thread": False})
@@ -36,6 +41,19 @@ class ProgressLog(SQLModel, table=True):
     book: Optional["Book"] = Relationship(back_populates="progress_logs")
 
 
+# ── Book Quote ─────────────────────────────────────────────────────────────────
+
+class BookQuote(SQLModel, table=True):
+    """A highlighted quote saved from a book."""
+    id:          Optional[int] = Field(default=None, primary_key=True)
+    book_id:     int           = Field(foreign_key="book.id", index=True)
+    quote_text:  str
+    page_number: Optional[int] = None   # Optional — EPUBs may not have pages
+    date_added:  datetime      = Field(default_factory=datetime.utcnow)
+
+    book: Optional["Book"] = Relationship(back_populates="quotes")
+
+
 # ── Book ──────────────────────────────────────────────────────────────────────
 
 class Book(SQLModel, table=True):
@@ -63,6 +81,7 @@ class Book(SQLModel, table=True):
 
     tags:           List[Tag]          = Relationship(back_populates="books", link_model=BookTagLink)
     progress_logs:  List[ProgressLog]  = Relationship(back_populates="book")
+    quotes:         List[BookQuote]    = Relationship(back_populates="book")
 
     @property
     def display_title(self) -> str:
@@ -75,10 +94,77 @@ class Book(SQLModel, table=True):
         return 0.0
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# ── Safe initialisation ────────────────────────────────────────────────────────
 
 def create_db_and_tables():
+    """
+    Create ALL tables declared above.
+    SQLModel.metadata.create_all uses IF NOT EXISTS semantics internally,
+    so existing tables (and their data) are never touched.
+    """
     SQLModel.metadata.create_all(engine)
+    _safe_migrate()
+
+
+def _safe_migrate():
+    """
+    Belt-and-suspenders migration: explicitly run IF NOT EXISTS DDL for any
+    table that might be missing from an older database file.
+    This guarantees zero data loss even when users upgrade from v1/v2/v3.
+    """
+    ddl_statements = [
+        # BookQuote — new in v4
+        """
+        CREATE TABLE IF NOT EXISTS bookquote (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            book_id     INTEGER NOT NULL REFERENCES book(id),
+            quote_text  TEXT    NOT NULL,
+            page_number INTEGER,
+            date_added  DATETIME NOT NULL DEFAULT (datetime('now'))
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_bookquote_book_id ON bookquote (book_id)",
+
+        # ProgressLog — added in v2; safe to re-run
+        """
+        CREATE TABLE IF NOT EXISTS progresslog (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            book_id   INTEGER NOT NULL REFERENCES book(id),
+            page      INTEGER NOT NULL,
+            timestamp DATETIME NOT NULL DEFAULT (datetime('now')),
+            note      TEXT
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_progresslog_book_id ON progresslog (book_id)",
+    ]
+
+    # Add any missing columns to the book table (ALTER TABLE ADD COLUMN is
+    # idempotent-safe via the try/except; SQLite ignores duplicate columns only
+    # when we catch the error ourselves).
+    book_columns_to_add = [
+        ("custom_title",  "TEXT"),
+        ("admin_notes",   "TEXT"),
+        ("date_started",  "DATETIME"),
+        ("date_finished", "DATETIME"),
+    ]
+
+    with engine.connect() as conn:
+        for stmt in ddl_statements:
+            conn.execute(text(stmt.strip()))
+
+        for col_name, col_type in book_columns_to_add:
+            try:
+                conn.execute(text(f"ALTER TABLE book ADD COLUMN {col_name} {col_type}"))
+                logger.info("Migration: added column book.%s", col_name)
+            except Exception:
+                pass  # Column already exists — safe to ignore
+
+        conn.commit()
+
+    logger.info("Safe migration complete.")
+
+
+# ── Session & helpers ──────────────────────────────────────────────────────────
 
 def get_session():
     with Session(engine) as session:
@@ -89,9 +175,7 @@ def get_or_create_tag(session: Session, name: str) -> Tag:
     tag = session.exec(select(Tag).where(Tag.name == name)).first()
     if not tag:
         tag = Tag(name=name)
-        session.add(tag)
-        session.commit()
-        session.refresh(tag)
+        session.add(tag); session.commit(); session.refresh(tag)
     return tag
 
 def get_all_books(session: Session) -> List[Book]:
@@ -109,10 +193,15 @@ def get_progress_logs(session: Session, book_id: int) -> List[ProgressLog]:
 
 def add_progress_log(session: Session, book_id: int, page: int, note: Optional[str] = None) -> ProgressLog:
     log = ProgressLog(book_id=book_id, page=page, note=note)
-    session.add(log)
-    session.commit()
-    session.refresh(log)
+    session.add(log); session.commit(); session.refresh(log)
     return log
+
+def get_quotes(session: Session, book_id: int) -> List[BookQuote]:
+    return session.exec(
+        select(BookQuote)
+        .where(BookQuote.book_id == book_id)
+        .order_by(BookQuote.date_added)
+    ).all()
 
 def get_stats(session: Session) -> dict:
     books = get_all_books(session)
