@@ -7,33 +7,36 @@ import hashlib
 import logging
 from pathlib import Path
 from typing import Optional, Tuple
-from datetime import datetime
 
-from sqlmodel import Session, select
-from database import engine, Book, get_or_create_tag, get_book_by_path
+from sqlmodel import Session
 
-logger = logging.getLogger("scanner")
+from shelfie.config import COVERS_DIR
+from shelfie.database import engine, Book, get_or_create_tag, get_book_by_path
 
-COVERS_DIR = Path("static/covers")
-COVERS_DIR.mkdir(parents=True, exist_ok=True)
+logger = logging.getLogger(__name__)
 
-SUPPORTED_EXTENSIONS = {".pdf", ".epub"}
+SUPPORTED_EXTENSIONS: frozenset = frozenset({".pdf", ".epub"})
 
 
-# ── Utility ──────────────────────────────────────────────────────────────────
+# ── Utility ───────────────────────────────────────────────────────────────────
 
 def _cover_filename(file_path: str) -> str:
+    """Stable filename derived from the book's absolute path."""
     h = hashlib.md5(file_path.encode()).hexdigest()[:12]
     return f"{h}.jpg"
 
+def _cover_url(fname: str) -> str:
+    """URL path served by the StaticFiles mount (always forward-slashes)."""
+    return f"static/covers/{fname}"
 
-# ── PDF ──────────────────────────────────────────────────────────────────────
+
+# ── PDF ───────────────────────────────────────────────────────────────────────
 
 def extract_pdf_metadata(file_path: str) -> Tuple[str, Optional[int], Optional[str]]:
-    """Returns (title, total_pages, cover_path). Never raises — returns fallbacks."""
-    title = Path(file_path).stem
+    """Return (title, total_pages, cover_url).  Never raises — returns fallbacks."""
+    title       = Path(file_path).stem
     total_pages = None
-    cover_path  = None
+    cover_url   = None
 
     try:
         import fitz  # PyMuPDF
@@ -41,20 +44,18 @@ def extract_pdf_metadata(file_path: str) -> Tuple[str, Optional[int], Optional[s
         doc = fitz.open(file_path)
         total_pages = doc.page_count
 
-        # Title from metadata or filename
         meta = doc.metadata or {}
         if meta.get("title", "").strip():
             title = meta["title"].strip()
 
-        # Cover: render first page as JPEG
         try:
             page  = doc[0]
-            mat   = fitz.Matrix(1.5, 1.5)   # 1.5× zoom
+            mat   = fitz.Matrix(1.5, 1.5)
             pix   = page.get_pixmap(matrix=mat, alpha=False)
             fname = _cover_filename(file_path)
             out   = COVERS_DIR / fname
             pix.save(str(out), "JPEG")
-            cover_path = f"static/covers/{fname}"
+            cover_url = _cover_url(fname)
         except Exception as e:
             logger.warning("Cover generation failed for %s: %s", file_path, e)
 
@@ -63,15 +64,15 @@ def extract_pdf_metadata(file_path: str) -> Tuple[str, Optional[int], Optional[s
     except Exception as e:
         logger.warning("PDF metadata extraction failed for %s: %s", file_path, e)
 
-    return title, total_pages, cover_path
+    return title, total_pages, cover_url
 
 
-# ── EPUB ─────────────────────────────────────────────────────────────────────
+# ── EPUB ──────────────────────────────────────────────────────────────────────
 
 def extract_epub_metadata(file_path: str) -> Tuple[str, Optional[int], Optional[str]]:
-    """Returns (title, None, cover_path). EPUBs don't have 'pages'."""
-    title       = Path(file_path).stem
-    cover_path  = None
+    """Return (title, None, cover_url).  EPUBs don't have a fixed page count."""
+    title     = Path(file_path).stem
+    cover_url = None
 
     try:
         import ebooklib
@@ -81,27 +82,23 @@ def extract_epub_metadata(file_path: str) -> Tuple[str, Optional[int], Optional[
 
         book = epub.read_epub(file_path, options={"ignore_ncx": True})
 
-        # Title
         titles = book.get_metadata("DC", "title")
         if titles:
             title = titles[0][0].strip() or title
 
-        # Cover image
         cover_item = None
-        # Method 1: look for cover id
         try:
             cover_item = book.get_item_with_id("cover")
         except Exception:
             pass
-        # Method 2: look for cover in manifest
+
         if cover_item is None:
             for item in book.get_items():
                 if item.get_type() == ebooklib.ITEM_IMAGE:
-                    name = (item.get_name() or "").lower()
-                    if "cover" in name:
+                    if "cover" in (item.get_name() or "").lower():
                         cover_item = item
                         break
-        # Method 3: first image
+
         if cover_item is None:
             for item in book.get_items():
                 if item.get_type() == ebooklib.ITEM_IMAGE:
@@ -116,22 +113,25 @@ def extract_epub_metadata(file_path: str) -> Tuple[str, Optional[int], Optional[
                 fname = _cover_filename(file_path)
                 out   = COVERS_DIR / fname
                 img.save(str(out), "JPEG")
-                cover_path = f"static/covers/{fname}"
+                cover_url = _cover_url(fname)
             except Exception as e:
                 logger.warning("EPUB cover save failed for %s: %s", file_path, e)
 
     except Exception as e:
         logger.warning("EPUB metadata extraction failed for %s: %s", file_path, e)
 
-    return title, None, cover_path
+    return title, None, cover_url
 
 
-# ── Core scan helpers ────────────────────────────────────────────────────────
+# ── Core DB helpers ───────────────────────────────────────────────────────────
 
 def add_book_to_db(session: Session, file_path: str) -> Optional[Book]:
-    """Add a book if not already tracked. Returns the Book or None."""
+    """Add a book if not already tracked.  Returns the new Book or None."""
+    # Normalise to absolute path so Docker volume paths are stable
+    file_path = str(Path(file_path).resolve())
+
     if get_book_by_path(session, file_path):
-        return None   # already tracked
+        return None
 
     ext = Path(file_path).suffix.lower()
     if ext not in SUPPORTED_EXTENSIONS:
@@ -151,15 +151,14 @@ def add_book_to_db(session: Session, file_path: str) -> Optional[Book]:
         cover_path  = cover_path,
         total_pages = total_pages,
     )
-    session.add(book)
-    session.commit()
-    session.refresh(book)
+    session.add(book); session.commit(); session.refresh(book)
     logger.info("Added: %s", title)
     return book
 
 
-def remove_book_from_db(session: Session, file_path: str):
-    """Remove a book (and its cover) from the database."""
+def remove_book_from_db(session: Session, file_path: str) -> None:
+    """Remove a book (and its cover image) from the database."""
+    file_path = str(Path(file_path).resolve())
     book = get_book_by_path(session, file_path)
     if book:
         if book.cover_path:
@@ -167,68 +166,76 @@ def remove_book_from_db(session: Session, file_path: str):
                 Path(book.cover_path).unlink(missing_ok=True)
             except Exception:
                 pass
-        session.delete(book)
-        session.commit()
+        session.delete(book); session.commit()
         logger.info("Removed: %s", file_path)
 
 
-def scan_library(library_path: str):
-    """Full scan: add new files, remove missing ones."""
-    folder = Path(library_path)
+# ── Full scan ─────────────────────────────────────────────────────────────────
+
+def scan_library(library_path: str) -> None:
+    """Walk the library folder, add new files, remove stale DB entries."""
+    folder = Path(library_path).resolve()
     if not folder.exists():
-        logger.error("Library folder does not exist: %s", library_path)
+        logger.error("Library folder does not exist: %s", folder)
         return
 
     with Session(engine) as session:
-        # Add new files
         for root, _, files in os.walk(folder):
             for fname in files:
                 ext = Path(fname).suffix.lower()
                 if ext in SUPPORTED_EXTENSIONS:
-                    full_path = str(Path(root) / fname)
+                    full_path = str(Path(root).resolve() / fname)
                     add_book_to_db(session, full_path)
 
-        # Remove books whose files are gone
-        from database import get_all_books
+        # Prune books whose files have been deleted
+        from shelfie.database import get_all_books
         for book in get_all_books(session):
             if not Path(book.file_path).exists():
                 remove_book_from_db(session, book.file_path)
 
-    logger.info("Scan complete for: %s", library_path)
+    logger.info("Scan complete for: %s", folder)
 
 
-# ── Watchdog ─────────────────────────────────────────────────────────────────
+# ── Watchdog ──────────────────────────────────────────────────────────────────
 
 def start_watchdog(library_path: str):
-    """Start a background Watchdog observer to sync the folder in real-time."""
-    from watchdog.observers import Observer
-    from watchdog.events import FileSystemEventHandler, FileCreatedEvent, FileDeletedEvent, FileMovedEvent
+    """
+    Start a background observer.
+
+    Uses PollingObserver so events fire correctly on:
+      - Docker bind-mounts
+      - NFS / SMB / FUSE volumes
+      - Any filesystem that doesn't propagate kernel inotify events
+    """
+    from watchdog.observers.polling import PollingObserver
+    from watchdog.events import FileSystemEventHandler
 
     class LibraryHandler(FileSystemEventHandler):
-        def _is_supported(self, path: str) -> bool:
+        @staticmethod
+        def _supported(path: str) -> bool:
             return Path(path).suffix.lower() in SUPPORTED_EXTENSIONS
 
         def on_created(self, event):
-            if not event.is_directory and self._is_supported(event.src_path):
+            if not event.is_directory and self._supported(event.src_path):
                 with Session(engine) as s:
                     add_book_to_db(s, event.src_path)
 
         def on_deleted(self, event):
-            if not event.is_directory and self._is_supported(event.src_path):
+            if not event.is_directory and self._supported(event.src_path):
                 with Session(engine) as s:
                     remove_book_from_db(s, event.src_path)
 
         def on_moved(self, event):
             if not event.is_directory:
                 with Session(engine) as s:
-                    if self._is_supported(event.src_path):
+                    if self._supported(event.src_path):
                         remove_book_from_db(s, event.src_path)
-                    if self._is_supported(event.dest_path):
+                    if self._supported(event.dest_path):
                         add_book_to_db(s, event.dest_path)
 
-    observer = Observer()
-    observer.schedule(LibraryHandler(), path=library_path, recursive=True)
+    observer = PollingObserver(timeout=5)   # poll every 5 s
+    observer.schedule(LibraryHandler(), path=str(Path(library_path).resolve()), recursive=True)
     observer.daemon = True
     observer.start()
-    logger.info("Watchdog started on: %s", library_path)
+    logger.info("PollingObserver started on: %s", library_path)
     return observer

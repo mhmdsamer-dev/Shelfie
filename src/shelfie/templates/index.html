@@ -116,7 +116,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-ser
 .s-dim::before   { background: linear-gradient(90deg, var(--border2), transparent); }
 
 /* ══════════════════════════════════════════
-   BOOK CARDS — v4 True Vertical Book Card
+   BOOK CARDS — True Vertical Book Card
 ══════════════════════════════════════════ */
 
 /* Grid container: flex-wrap so cards never stretch */
@@ -251,7 +251,6 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-ser
   color: var(--text);
   /* Clamp to 2 lines */
   display: -webkit-box;
-  line-clamp: 2;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
@@ -707,7 +706,19 @@ body.modal-open { overflow: hidden; }
     </div>
     <label style="font-size:11.5px;color:var(--text3);display:block;margin-bottom:5px">Library Folder Path</label>
     <input id="settings-path" class="field" placeholder="/Users/you/Books" style="margin-bottom:9px"/>
-    <p style="font-size:11.5px;color:var(--text3);margin-bottom:14px;line-height:1.5">Full path to your folder of PDFs and EPUBs. Auto-synced via Watchdog.</p>
+    <p style="font-size:11.5px;color:var(--text3);margin-bottom:6px;line-height:1.5">
+      Full path to your folder of PDFs and EPUBs. Auto-synced via Watchdog.
+    </p>
+    <p id="settings-docker-hint" style="display:none;font-size:11.5px;line-height:1.5;margin-bottom:14px;padding:8px 10px;background:var(--blue-dim);border:1px solid rgba(91,156,246,.25);border-radius:7px;color:var(--blue)">
+      Running via Docker? Enter the <strong>container-internal path</strong> mapped in your
+      compose file — not the path on your host machine. The default mapping is
+      <code style="font-family:var(--mono);font-size:11px">/books</code>.
+    </p>
+    <p id="settings-local-hint" style="display:none;font-size:11.5px;color:var(--text3);margin-bottom:14px;line-height:1.5">
+      Enter the full path to your books folder on this machine, e.g.
+      <code style="font-family:var(--mono);font-size:11px">/home/you/Books</code> or
+      <code style="font-family:var(--mono);font-size:11px">D:\Books</code>.
+    </p>
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button class="btn btn-ghost btn-sm" onclick="closeSettings()">Cancel</button>
       <button class="btn btn-primary btn-sm" onclick="saveSettings()">Save & Rescan</button>
@@ -793,10 +804,25 @@ async function loadSidebar() {
 }
 
 async function loadLibraryPath() {
-  const r = await api('GET', '/api/library-path').catch(()=>({path:''}));
+  const r = await api('GET', '/api/library-path').catch(()=>({path:'', is_docker:false}));
+
+  // Sidebar — truncate long paths
   const s = r.path.length > 36 ? '…' + r.path.slice(-34) : r.path;
   document.getElementById('sidebar-path').textContent = s || 'Not configured';
+
+  // Settings input — pre-fill with current value
   document.getElementById('settings-path').value = r.path;
+
+  // Show the correct hint based on environment
+  const dockerHint = document.getElementById('settings-docker-hint');
+  const localHint  = document.getElementById('settings-local-hint');
+  if (r.is_docker) {
+    dockerHint.style.display = 'block';
+    localHint.style.display  = 'none';
+  } else {
+    dockerHint.style.display = 'none';
+    localHint.style.display  = 'block';
+  }
 }
 
 // ── Filters ────────────────────────────────────────────────────────────────────

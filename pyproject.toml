@@ -1,0 +1,87 @@
+[build-system]
+requires      = ["hatchling"]
+build-backend = "hatchling.build"
+
+# ── Project metadata ───────────────────────────────────────────────────────────
+[project]
+name        = "shelfie-py"
+version     = "0.1.0"
+description = "Self-hosted local library manager for PDFs and EPUBs"
+readme      = "README.md"
+license     = { text = "GPL-2.0-only" }
+requires-python = ">=3.11"
+
+keywords = ["books", "library", "pdf", "epub", "reading-tracker"]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Framework :: FastAPI",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: GNU General Public License v2 (GPLv2)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP :: WSGI :: Application",
+]
+
+# ── Runtime dependencies ───────────────────────────────────────────────────────
+dependencies = [
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.30.1",
+    "sqlmodel>=0.0.19",
+    "sqlalchemy>=2.0.30",
+    "Pillow>=10.3.0",
+    "PyMuPDF>=1.24.5",         # PDF rendering — installs as 'fitz'
+    "EbookLib>=0.18",          # EPUB parsing
+    "watchdog>=4.0.1",
+    "python-multipart>=0.0.9", # multipart form / file upload support for FastAPI
+    "aiofiles>=23.2.1",
+    "lxml>=5.2.2",
+    "html5lib>=1.1",
+    "jinja2>=3.1.4",           # templating (pulled in by FastAPI but pinned explicitly)
+]
+
+# ── Optional extras ────────────────────────────────────────────────────────────
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "httpx>=0.27",             # async test client for FastAPI
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
+
+# ── CLI entry point ────────────────────────────────────────────────────────────
+# After `pip install shelfie`, users can type `shelfie` to start the server.
+[project.scripts]
+shelfie = "shelfie.main:main"
+
+# ── Hatchling build config ─────────────────────────────────────────────────────
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/shelfie/**",
+    "README.md",
+    "pyproject.toml",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/shelfie"]
+artifacts = [
+    "src/shelfie/static/**",
+    "src/shelfie/templates/**",
+]
+
+# ── Ruff linter ────────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length    = 100
+target-version = "py311"
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+# ── Mypy ──────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version         = "3.11"
+strict                 = false
+ignore_missing_imports = true

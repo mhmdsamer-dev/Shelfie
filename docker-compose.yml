@@ -1,0 +1,82 @@
+version: "3.9"
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  Shelfie — docker-compose.yml                                              ║
+# ║                                                                              ║
+# ║  Quick start:                                                                ║
+# ║    docker compose up -d                                                      ║
+# ║                                                                              ║
+# ║  Then open http://localhost:8000 in your browser.                           ║
+# ║                                                                              ║
+# ║  To point at a different book folder on the host, change the                ║
+# ║  'books' bind-mount source below (or override LIBRARY_PATH).                ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+services:
+  shelfie:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime          # use only the lean runtime stage
+
+    # Alternatively, pull from a registry:
+    # image: yourname/shelfie:latest
+
+    container_name: shelfie
+    user: root
+
+    restart: unless-stopped
+
+    ports:
+      - "8000:8000"            # host:container  — change left side to remap
+
+    environment:
+      # All paths inside the container — edit only if you change the volume targets
+      SHELFIE_DATA_DIR:    /data
+      SHELFIE_DB_URL:      sqlite:////data/library.db
+      SHELFIE_COVERS_DIR:  /data/covers
+      SHELFIE_CONFIG:      /data/library_path.txt
+      LIBRARY_PATH:          /books
+
+      # Uvicorn log level: debug | info | warning | error
+      # UVICORN_LOG_LEVEL: info
+
+    volumes:
+      # ── Persistent data (named volume — survives container removal) ─────────
+      - shelfie_data:/data
+
+      # ── Your book collection (bind-mount from the host) ────────────────────
+      # Change ~/Books to wherever your PDFs and EPUBs live.
+      # The path to the right of the colon must match LIBRARY_PATH above.
+      - type: bind
+        source: ${BOOKS_DIR:-~/Books}     # override with: BOOKS_DIR=/mnt/nas/books docker compose up
+        target: /books
+        read_only: true                   # Shelfie only reads files, never writes them
+
+    # Resource limits (optional — tune to your host)
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+    healthcheck:
+      test: >
+        python -c
+        "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/stats')"
+      interval: 30s
+      timeout:  5s
+      retries:  3
+      start_period: 15s
+
+# ── Named volumes ──────────────────────────────────────────────────────────────
+volumes:
+  shelfie_data:
+    driver: local
+    # To back the volume with a specific host directory instead of Docker's
+    # default managed location, uncomment and edit the block below:
+    #
+    # driver_opts:
+    #   type:   none
+    #   o:      bind
+    #   device: /opt/shelfie/data
