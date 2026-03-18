@@ -5,7 +5,7 @@ sqlalchemy==2.0.30
 PyMuPDF==1.24.5
 EbookLib==0.18
 watchdog==4.0.1
-Pillow==10.3.0
+Pillow==12.1.1
 python-multipart==0.0.9
 aiofiles==23.2.1
 lxml==5.2.2
