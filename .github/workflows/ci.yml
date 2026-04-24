@@ -252,7 +252,7 @@ jobs:
         id: pytest
         run: |
           set +e
-          python -m pytest tests/ \
+          python -m pytest \
             -v \
             --tb=long \
             --log-cli-level=DEBUG \
@@ -267,7 +267,12 @@ jobs:
           # ── Step Summary: parse JUnit XML for a concise failure table ──────────
           echo "## 🧪 Test Results (Python ${{ matrix.python-version }})" >> "$GITHUB_STEP_SUMMARY"
 
-          if [ "$PYTEST_EXIT" -ne 0 ]; then
+          if [ "$PYTEST_EXIT" -eq 5 ]; then
+            echo "### ⚪ No tests collected" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Test discovery ran successfully, but no tests were found yet." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          elif [ "$PYTEST_EXIT" -ne 0 ]; then
             echo "### ❌ Some tests failed — see details below and download \`pytest-results-py${{ matrix.python-version }}\` artifact" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
             # Extract failed test names from the JUnit XML using grep (no extra deps needed)
