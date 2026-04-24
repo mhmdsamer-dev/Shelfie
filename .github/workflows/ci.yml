@@ -1,0 +1,374 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Shelfie — GitHub Actions CI Pipeline
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# OVERVIEW
+# --------
+# This workflow runs on every push to `main` and on every pull request.
+# It is split into four sequential jobs that must all pass for the pipeline
+# to be considered green:
+#
+#   1. lint-and-typecheck  → Ruff linter + Mypy static analysis
+#   2. security-scan       → pip-audit vulnerability scanner
+#   3. test                → pytest with verbose JUnit XML output
+#   4. docker-build        → Validates the Dockerfile builds without errors
+#
+# HOW TO ACCESS DEBUG ARTIFACTS WHEN A BUILD FAILS
+# -------------------------------------------------
+#   1. Open the failed workflow run on GitHub Actions.
+#   2. Scroll to the bottom of the run summary page.
+#   3. Under "Artifacts", download:
+#        • `pytest-results`  → JUnit XML + pytest verbose log
+#        • `ruff-report`     → Full Ruff output log
+#        • `mypy-report`     → Full Mypy output log
+#        • `pip-audit-report`→ Dependency vulnerability JSON report
+#   4. A human-readable summary of failures is also printed inline on the
+#      workflow summary page (via $GITHUB_STEP_SUMMARY).
+#
+# ══════════════════════════════════════════════════════════════════════════════
+
+name: CI
+
+# ── Triggers ──────────────────────────────────────────────────────────────────
+on:
+  push:
+    branches:
+      - main
+  pull_request:  # runs on all PRs regardless of target branch
+
+# ── Global defaults ───────────────────────────────────────────────────────────
+# Least-privilege permissions: read the repo contents, nothing else.
+# Individual jobs that need more can escalate (e.g. for GITHUB_TOKEN writes).
+permissions:
+  contents: read
+
+# Cancel any in-progress run for the same branch/PR to save runner minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ── Environment variables shared across all jobs ──────────────────────────────
+env:
+  PYTHON_VERSION: "3.11"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"   # quieter pip output
+  PYTHONDONTWRITEBYTECODE: "1"         # no __pycache__ clutter in logs
+  PYTHONUNBUFFERED: "1"                # ensure log output is flushed immediately
+
+# ══════════════════════════════════════════════════════════════════════════════
+# JOB 1 — Lint & Type Check
+# ══════════════════════════════════════════════════════════════════════════════
+jobs:
+  lint-and-typecheck:
+    name: "🔍 Lint & Type Check"
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── Checkout ─────────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Python setup ─────────────────────────────────────────────────────────
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"             # cache pip's HTTP cache across runs
+
+      # ── Install dev dependencies ──────────────────────────────────────────────
+      # We install the package in editable mode so that the src/ layout is
+      # resolved correctly by both ruff and mypy.
+      - name: Install project + dev extras
+        run: pip install -e ".[dev]"
+
+      # ── Ruff linter ───────────────────────────────────────────────────────────
+      # --output-format=github  → produces GitHub annotations (inline PR comments)
+      # Tee the output to a log file so we can upload it as an artifact on failure.
+      - name: Run Ruff (linter)
+        id: ruff
+        run: |
+          set +e   # don't exit immediately; we want to capture the exit code
+          ruff check src/ --output-format=github 2>&1 | tee ruff-output.log
+          RUFF_EXIT=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$RUFF_EXIT" -ne 0 ]; then
+            echo "## ❌ Ruff Linting Failed" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            cat ruff-output.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo ""  >> "$GITHUB_STEP_SUMMARY"
+            echo "> **Tip:** Run \`ruff check src/ --fix\` locally to auto-fix most issues." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## ✅ Ruff — No linting issues found" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          exit "$RUFF_EXIT"
+
+      # ── Mypy static analysis ──────────────────────────────────────────────────
+      # --show-error-codes  → easier to look up individual rules
+      # --pretty            → indented, human-friendly error messages
+      - name: Run Mypy (type checker)
+        id: mypy
+        if: always()   # run even if ruff failed so we get both reports
+        run: |
+          set +e
+          mypy src/ --show-error-codes --pretty 2>&1 | tee mypy-output.log
+          MYPY_EXIT=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$MYPY_EXIT" -ne 0 ]; then
+            echo "## ❌ Mypy Type-Check Failed" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            cat mypy-output.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## ✅ Mypy — No type errors found" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          exit "$MYPY_EXIT"
+
+      # ── Upload lint reports on failure ────────────────────────────────────────
+      # Even if one step above failed we still want to collect the other log,
+      # so we use `if: failure()` to ensure upload happens on any failure.
+      - name: Upload lint reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-reports
+          path: |
+            ruff-output.log
+            mypy-output.log
+          retention-days: 7
+          # How to use: Download "lint-reports" from the Artifacts section of the
+          # failed run. Open ruff-output.log or mypy-output.log to see every
+          # flagged line with its rule code and fix suggestion.
+
+  # ══════════════════════════════════════════════════════════════════════════════
+  # JOB 2 — Security / Vulnerability Scan
+  # ══════════════════════════════════════════════════════════════════════════════
+  security-scan:
+    name: "🛡️ Security Scan"
+    runs-on: ubuntu-latest
+    # Run in parallel with lint-and-typecheck since they are independent.
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install pip-audit
+        # pip-audit queries PyPI's advisory database (OSV) for known CVEs.
+        run: pip install pip-audit
+
+      - name: Install project dependencies (for audit scope)
+        # Install only the runtime deps so we audit what ships to production.
+        run: pip install -r requirements.txt
+
+      # ── pip-audit ─────────────────────────────────────────────────────────────
+      # --format=json  → machine-readable report uploaded as an artifact
+      # --output       → write JSON to file (stdout stays human-readable)
+      # The human-readable output is also captured for $GITHUB_STEP_SUMMARY.
+      - name: Run pip-audit
+        id: pip_audit
+        run: |
+          set +e
+          pip-audit --requirement requirements.txt \
+                    --format=json \
+                    --output=pip-audit-report.json \
+                    2>&1 | tee pip-audit-human.log
+          AUDIT_EXIT=${PIPESTATUS[0]}
+          set -e
+
+          echo "## 🛡️ pip-audit Vulnerability Report" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$AUDIT_EXIT" -ne 0 ]; then
+            echo "### ❌ Vulnerabilities detected — download \`pip-audit-report\` artifact for full JSON details" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            cat pip-audit-human.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### ✅ No known vulnerabilities found in dependencies" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          exit "$AUDIT_EXIT"
+
+      # ── Upload audit report (always, for record-keeping) ──────────────────────
+      - name: Upload pip-audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit-report
+          path: |
+            pip-audit-report.json
+            pip-audit-human.log
+          retention-days: 30
+          # How to use: Download "pip-audit-report" from the Artifacts section.
+          # pip-audit-report.json lists every vulnerable package, the CVE ID,
+          # the fixed version, and a link to the advisory. Update requirements.txt
+          # with the fixed versions to resolve the findings.
+
+  # ══════════════════════════════════════════════════════════════════════════════
+  # JOB 3 — Test Suite
+  # ══════════════════════════════════════════════════════════════════════════════
+  test:
+    name: "🧪 Tests (Python ${{ matrix.python-version }})"
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck]   # don't waste runner time if code is broken
+
+    # ── Matrix: run tests against both supported Python versions ────────────────
+    strategy:
+      fail-fast: false            # let both matrix legs finish so we get all results
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install project + dev extras
+        run: pip install -e ".[dev]"
+
+      # ── pytest ────────────────────────────────────────────────────────────────
+      # Flags explained:
+      #   -v                     → verbose: print each test name and its result
+      #   --tb=long              → full traceback on failure (not the default short)
+      #   --log-cli-level=DEBUG  → stream all log output live to the console
+      #   --log-file             → also write full log to a file for the artifact
+      #   --log-file-level=DEBUG → include DEBUG-level messages in the file log
+      #   --junit-xml            → JUnit XML for GitHub to parse and annotate PRs
+      #   -p no:cacheprovider    → disable .pytest_cache (cleaner CI environment)
+      - name: Run pytest
+        id: pytest
+        run: |
+          set +e
+          python -m pytest tests/ \
+            -v \
+            --tb=long \
+            --log-cli-level=DEBUG \
+            --log-file=pytest-debug.log \
+            --log-file-level=DEBUG \
+            --junit-xml=pytest-results.xml \
+            -p no:cacheprovider \
+            2>&1 | tee pytest-console.log
+          PYTEST_EXIT=${PIPESTATUS[0]}
+          set -e
+
+          # ── Step Summary: parse JUnit XML for a concise failure table ──────────
+          echo "## 🧪 Test Results (Python ${{ matrix.python-version }})" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$PYTEST_EXIT" -ne 0 ]; then
+            echo "### ❌ Some tests failed — see details below and download \`pytest-results-py${{ matrix.python-version }}\` artifact" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            # Extract failed test names from the JUnit XML using grep (no extra deps needed)
+            echo "**Failed tests:**" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            grep -oP '(?<=name=")[^"]+' pytest-results.xml | head -50 >> "$GITHUB_STEP_SUMMARY" || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Last 50 lines of console output:**" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -50 pytest-console.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            # Extract pass/skip/fail totals from the last line of pytest output
+            SUMMARY_LINE=$(grep -E "passed|failed|error" pytest-console.log | tail -1 || echo "No summary line found")
+            echo "### ✅ All tests passed" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "\`$SUMMARY_LINE\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          exit "$PYTEST_EXIT"
+
+      # ── Upload test artifacts on failure ──────────────────────────────────────
+      - name: Upload pytest results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          # Include the Python version in the artifact name so matrix legs
+          # don't overwrite each other.
+          name: pytest-results-py${{ matrix.python-version }}
+          path: |
+            pytest-results.xml
+            pytest-debug.log
+            pytest-console.log
+          retention-days: 14
+          # How to use:
+          #   1. Download "pytest-results-py3.11" (or py3.12) from the Artifacts section.
+          #   2. Open pytest-debug.log for the full DEBUG-level log including all
+          #      HTTP requests, SQL queries, and application log lines.
+          #   3. Open pytest-results.xml in any JUnit viewer (e.g. the
+          #      "Test Results" GitHub app) to see the structured failure tree.
+          #   4. pytest-console.log mirrors what you'd see running locally with
+          #      `pytest -v --tb=long`.
+
+  # ══════════════════════════════════════════════════════════════════════════════
+  # JOB 4 — Docker Build Validation
+  # ══════════════════════════════════════════════════════════════════════════════
+  docker-build:
+    name: "🐳 Docker Build"
+    runs-on: ubuntu-latest
+    # Run after tests pass so we don't burn Docker layer cache on broken code.
+    needs: [test]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Docker Buildx (enables BuildKit for faster, cacheable builds) ──────────
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ── Build the image (no push) ─────────────────────────────────────────────
+      # --progress=plain  → full verbose build log (no TTY spinner)
+      # --no-cache        → on CI, always build from scratch for reproducibility
+      # DOCKER_BUILDKIT=1 → enable inline cache and secret mounts
+      - name: Build Docker image
+        id: docker_build
+        run: |
+          set +e
+          DOCKER_BUILDKIT=1 docker buildx build \
+            --file Dockerfile \
+            --tag shelfie:ci-${{ github.sha }} \
+            --progress=plain \
+            --no-cache \
+            . 2>&1 | tee docker-build.log
+          BUILD_EXIT=${PIPESTATUS[0]}
+          set -e
+
+          echo "## 🐳 Docker Build" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$BUILD_EXIT" -ne 0 ]; then
+            echo "### ❌ Docker build failed — download \`docker-build-log\` artifact" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Last 30 lines of build output:**" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -30 docker-build.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### ✅ Docker image built successfully (\`shelfie:ci-${{ github.sha }}\`)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          exit "$BUILD_EXIT"
+
+      # ── Upload Docker build log on failure ────────────────────────────────────
+      - name: Upload Docker build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-build-log
+          path: docker-build.log
+          retention-days: 7
+          # How to use: Download "docker-build-log" from the Artifacts section.
+          # The log contains every RUN, COPY, and layer digest line from BuildKit.
+          # Search for "ERROR" to jump directly to the failing layer.
