@@ -5,10 +5,11 @@ sqlalchemy==2.0.30
 PyMuPDF==1.24.5
 EbookLib==0.18
 watchdog==4.0.1
-Pillow==10.3.0
-python-multipart==0.0.9
+Pillow==12.2.0
+python-multipart==0.0.26
 aiofiles==23.2.1
-lxml==5.2.2
+lxml==6.1.0
 html5lib==1.1
-jinja2==3.1.4
-python-dotenv==1.0.1
+jinja2==3.1.6	
+python-dotenv==1.2.2	
+starlette==0.47.2
