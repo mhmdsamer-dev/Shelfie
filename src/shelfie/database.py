@@ -4,10 +4,9 @@ database.py — SQLModel models and zero-loss database initialisation.
 
 import logging
 from datetime import datetime
-from typing import Optional, List
 
-from sqlmodel import Field, SQLModel, create_engine, Session, select, Relationship
 from sqlalchemy import text
+from sqlmodel import Field, Relationship, Session, SQLModel, create_engine, select
 
 from shelfie.config import DATABASE_URL
 
@@ -23,67 +22,67 @@ engine = create_engine(
 # ── Link table ─────────────────────────────────────────────────────────────────
 
 class BookTagLink(SQLModel, table=True):
-    book_id: Optional[int] = Field(default=None, foreign_key="book.id", primary_key=True)
-    tag_id:  Optional[int] = Field(default=None, foreign_key="tag.id",  primary_key=True)
+    book_id: int | None = Field(default=None, foreign_key="book.id", primary_key=True)
+    tag_id: int | None = Field(default=None, foreign_key="tag.id", primary_key=True)
 
 
 # ── Tag ────────────────────────────────────────────────────────────────────────
 
 class Tag(SQLModel, table=True):
-    id:    Optional[int] = Field(default=None, primary_key=True)
-    name:  str           = Field(index=True, unique=True)
-    books: List["Book"]  = Relationship(back_populates="tags", link_model=BookTagLink)
+    id: int | None = Field(default=None, primary_key=True)
+    name: str = Field(index=True, unique=True)
+    books: list["Book"] = Relationship(back_populates="tags", link_model=BookTagLink)
 
 
 # ── ProgressLog ────────────────────────────────────────────────────────────────
 
 class ProgressLog(SQLModel, table=True):
-    id:        Optional[int] = Field(default=None, primary_key=True)
-    book_id:   int           = Field(foreign_key="book.id", index=True)
-    page:      int
-    timestamp: datetime      = Field(default_factory=datetime.utcnow)
-    note:      Optional[str] = None
-    book:      Optional["Book"] = Relationship(back_populates="progress_logs")
+    id: int | None = Field(default=None, primary_key=True)
+    book_id: int = Field(foreign_key="book.id", index=True)
+    page: int
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    note: str | None = None
+    book: "Book" | None = Relationship(back_populates="progress_logs")
 
 
 # ── BookQuote ──────────────────────────────────────────────────────────────────
 
 class BookQuote(SQLModel, table=True):
-    id:          Optional[int] = Field(default=None, primary_key=True)
-    book_id:     int           = Field(foreign_key="book.id", index=True)
-    quote_text:  str
-    page_number: Optional[int] = None
-    date_added:  datetime      = Field(default_factory=datetime.utcnow)
-    book:        Optional["Book"] = Relationship(back_populates="quotes")
+    id: int | None = Field(default=None, primary_key=True)
+    book_id: int = Field(foreign_key="book.id", index=True)
+    quote_text: str
+    page_number: int | None = None
+    date_added: datetime = Field(default_factory=datetime.utcnow)
+    book: "Book" | None = Relationship(back_populates="quotes")
 
 
 # ── Book ───────────────────────────────────────────────────────────────────────
 
 class Book(SQLModel, table=True):
-    id:            Optional[int]      = Field(default=None, primary_key=True)
-    file_path:     str                = Field(index=True, unique=True)
+    id: int | None = Field(default=None, primary_key=True)
+    file_path: str = Field(index=True, unique=True)
 
-    title:         str
-    custom_title:  Optional[str]      = None
+    title: str
+    custom_title: str | None = None
 
-    file_type:     str                          # "pdf" | "epub"
-    cover_path:    Optional[str]      = None
-    total_pages:   Optional[int]      = None
-    current_page:  int                = 0
-    category:      Optional[str]      = None
+    file_type: str  # "pdf" | "epub"
+    cover_path: str | None = None
+    total_pages: int | None = None
+    current_page: int = 0
+    category: str | None = None
 
-    notes:         Optional[str]      = None
-    admin_notes:   Optional[str]      = None
+    notes: str | None = None
+    admin_notes: str | None = None
 
-    is_read:       bool               = False
-    date_added:    datetime           = Field(default_factory=datetime.utcnow)
-    last_opened:   Optional[datetime] = None
-    date_started:  Optional[datetime] = None
-    date_finished: Optional[datetime] = None
+    is_read: bool = False
+    date_added: datetime = Field(default_factory=datetime.utcnow)
+    last_opened: datetime | None = None
+    date_started: datetime | None = None
+    date_finished: datetime | None = None
 
-    tags:          List[Tag]          = Relationship(back_populates="books",  link_model=BookTagLink)
-    progress_logs: List[ProgressLog]  = Relationship(back_populates="book")
-    quotes:        List[BookQuote]    = Relationship(back_populates="book")
+    tags: list[Tag] = Relationship(back_populates="books", link_model=BookTagLink)
+    progress_logs: list[ProgressLog] = Relationship(back_populates="book")
+    quotes: list[BookQuote] = Relationship(back_populates="book")
 
     @property
     def display_title(self) -> str:
@@ -171,42 +170,50 @@ def get_session():
 
 def get_or_create_tag(session: Session, name: str) -> Tag:
     name = name.strip().lower()
-    tag  = session.exec(select(Tag).where(Tag.name == name)).first()
+    tag = session.exec(select(Tag).where(Tag.name == name)).first()
     if not tag:
         tag = Tag(name=name)
-        session.add(tag); session.commit(); session.refresh(tag)
+        session.add(tag)
+        session.commit()
+        session.refresh(tag)
     return tag
 
-def get_all_books(session: Session) -> List[Book]:
-    return session.exec(select(Book)).all()
+def get_all_books(session: Session) -> list[Book]:
+    return list(session.exec(select(Book)).all())
 
-def get_book_by_path(session: Session, file_path: str) -> Optional[Book]:
+def get_book_by_path(session: Session, file_path: str) -> Book | None:
     return session.exec(select(Book).where(Book.file_path == file_path)).first()
 
-def get_progress_logs(session: Session, book_id: int) -> List[ProgressLog]:
-    return session.exec(
+def get_progress_logs(session: Session, book_id: int) -> list[ProgressLog]:
+    return list(
+        session.exec(
         select(ProgressLog)
         .where(ProgressLog.book_id == book_id)
-        .order_by(ProgressLog.timestamp)
+        .order_by("timestamp")
     ).all()
+    )
 
 def add_progress_log(session: Session, book_id: int, page: int,
-                     note: Optional[str] = None) -> ProgressLog:
+                     note: str | None = None) -> ProgressLog:
     log = ProgressLog(book_id=book_id, page=page, note=note)
-    session.add(log); session.commit(); session.refresh(log)
+    session.add(log)
+    session.commit()
+    session.refresh(log)
     return log
 
-def get_quotes(session: Session, book_id: int) -> List[BookQuote]:
-    return session.exec(
+def get_quotes(session: Session, book_id: int) -> list[BookQuote]:
+    return list(
+        session.exec(
         select(BookQuote)
         .where(BookQuote.book_id == book_id)
-        .order_by(BookQuote.date_added)
+        .order_by("date_added")
     ).all()
+    )
 
 def get_stats(session: Session) -> dict:
-    books       = get_all_books(session)
-    total       = len(books)
-    read        = sum(1 for b in books if b.is_read)
+    books = get_all_books(session)
+    total = len(books)
+    read = sum(1 for b in books if b.is_read)
     in_progress = sum(1 for b in books if b.current_page > 0 and not b.is_read)
 
     tag_counts: dict[str, int] = {}

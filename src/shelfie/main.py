@@ -11,10 +11,10 @@ import os
 import subprocess
 import sys
 import threading
+import webbrowser
 from datetime import datetime
 from importlib.resources import files as _pkg_files
 from pathlib import Path
-from typing import List, Optional
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
@@ -136,34 +136,34 @@ def on_startup() -> None:
 # ── Pydantic schemas ───────────────────────────────────────────────────────────
 
 class BookUpdate(BaseModel):
-    current_page: Optional[int]       = None
-    category:     Optional[str]       = None
-    notes:        Optional[str]       = None
-    is_read:      Optional[bool]      = None
-    tags:         Optional[List[str]] = None
+    current_page: int | None = None
+    category: str | None = None
+    notes: str | None = None
+    is_read: bool | None = None
+    tags: list[str] | None = None
 
 class BookDetailUpdate(BaseModel):
-    custom_title:  Optional[str]       = None
-    admin_notes:   Optional[str]       = None
-    date_started:  Optional[str]       = None   # ISO-8601 or "" to clear
-    date_finished: Optional[str]       = None
-    current_page:  Optional[int]       = None
-    category:      Optional[str]       = None
-    notes:         Optional[str]       = None
-    is_read:       Optional[bool]      = None
-    tags:          Optional[List[str]] = None
-    log_progress:  bool                = False
+    custom_title: str | None = None
+    admin_notes: str | None = None
+    date_started: str | None = None   # ISO-8601 or "" to clear
+    date_finished: str | None = None
+    current_page: int | None = None
+    category: str | None = None
+    notes: str | None = None
+    is_read: bool | None = None
+    tags: list[str] | None = None
+    log_progress: bool = False
 
 class ProgressLogIn(BaseModel):
     page: int
-    note: Optional[str] = None
+    note: str | None = None
 
 class ProgressLogNoteUpdate(BaseModel):
     note: str
 
 class QuoteIn(BaseModel):
     quote_text:  str
-    page_number: Optional[int] = None
+    page_number: int | None = None
 
 class LibraryPathIn(BaseModel):
     path: str
@@ -171,7 +171,7 @@ class LibraryPathIn(BaseModel):
 
 # ── Internal helpers ───────────────────────────────────────────────────────────
 
-def _parse_dt(val: Optional[str]) -> Optional[datetime]:
+def _parse_dt(val: str | None) -> datetime | None:
     if not val or not val.strip():
         return None
     try:
@@ -237,8 +237,9 @@ def quote_to_out(q: BookQuote) -> dict:
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
     return templates.TemplateResponse(
+        request,
         "index.html",
-        {"request": request, "library_path": load_library_path()},
+        {"library_path": load_library_path()},
     )
 
 
@@ -246,10 +247,10 @@ async def root(request: Request):
 
 @app.get("/api/books")
 def list_books(
-    category: Optional[str] = None,
-    tag:      Optional[str] = None,
-    q:        Optional[str] = None,
-    session:  Session       = Depends(get_session),
+    category: str | None = None,
+    tag: str | None = None,
+    q: str | None = None,
+    session: Session = Depends(get_session),
 ):
     books = session.exec(select(Book)).all()
     if category:
@@ -279,12 +280,17 @@ def patch_book(book_id: int, data: BookUpdate, session: Session = Depends(get_se
     if data.current_page is not None:
         _apply_auto_dates(book, data.current_page)
         book.current_page = data.current_page
-    if data.category is not None: book.category = data.category
-    if data.notes    is not None: book.notes    = data.notes
-    if data.is_read  is not None: book.is_read  = data.is_read
-    if data.tags     is not None:
+    if data.category is not None:
+        book.category = data.category
+    if data.notes is not None:
+        book.notes = data.notes
+    if data.is_read is not None:
+        book.is_read = data.is_read
+    if data.tags is not None:
         book.tags = [get_or_create_tag(session, t) for t in data.tags if t.strip()]
-    session.add(book); session.commit(); session.refresh(book)
+    session.add(book)
+    session.commit()
+    session.refresh(book)
     return book_to_out(book)
 
 
@@ -303,17 +309,26 @@ def put_book(book_id: int, data: BookDetailUpdate, session: Session = Depends(ge
             note = f"Reached page {data.current_page}" + (f" ({pct}%)" if book.total_pages else "")
             add_progress_log(session, book_id, data.current_page, note)
 
-    if data.custom_title  is not None: book.custom_title = data.custom_title or None
-    if data.admin_notes   is not None: book.admin_notes  = data.admin_notes
-    if data.category      is not None: book.category     = data.category
-    if data.notes         is not None: book.notes        = data.notes
-    if data.is_read       is not None: book.is_read      = data.is_read
-    if data.date_started  is not None: book.date_started  = _parse_dt(data.date_started)
-    if data.date_finished is not None: book.date_finished = _parse_dt(data.date_finished)
-    if data.tags          is not None:
+    if data.custom_title is not None:
+        book.custom_title = data.custom_title or None
+    if data.admin_notes is not None:
+        book.admin_notes = data.admin_notes
+    if data.category is not None:
+        book.category = data.category
+    if data.notes is not None:
+        book.notes = data.notes
+    if data.is_read is not None:
+        book.is_read = data.is_read
+    if data.date_started is not None:
+        book.date_started = _parse_dt(data.date_started)
+    if data.date_finished is not None:
+        book.date_finished = _parse_dt(data.date_finished)
+    if data.tags is not None:
         book.tags = [get_or_create_tag(session, t) for t in data.tags if t.strip()]
 
-    session.add(book); session.commit(); session.refresh(book)
+    session.add(book)
+    session.commit()
+    session.refresh(book)
     return book_to_out(book)
 
 
@@ -323,11 +338,14 @@ def delete_book(book_id: int, session: Session = Depends(get_session)):
     if not book:
         raise HTTPException(404, "Book not found")
     if book.cover_path:
-        try: Path(book.cover_path).unlink(missing_ok=True)
-        except Exception: pass
+        try:
+            Path(book.cover_path).unlink(missing_ok=True)
+        except Exception:
+            pass
     for log in get_progress_logs(session, book_id):
         session.delete(log)
-    session.delete(book); session.commit()
+    session.delete(book)
+    session.commit()
     return {"ok": True}
 
 
@@ -351,13 +369,13 @@ async def upload_cover(
 
     try:
         img  = Image.open(io.BytesIO(raw)).convert("RGB")
-        img.thumbnail((600, 900), Image.LANCZOS)
+        img.thumbnail((600, 900), Image.Resampling.LANCZOS)
         fname    = f"custom_{book_id}.jpg"
         out_path = COVERS_DIR / fname
         img.save(str(out_path), "JPEG", quality=88)
     except Exception as e:
         logger.warning("Cover save failed for book %d: %s", book_id, e)
-        raise HTTPException(500, "Could not process image")
+        raise HTTPException(500, "Could not process image") from e
 
     if book.cover_path and book.cover_path != f"static/covers/{fname}":
         try:
@@ -368,7 +386,9 @@ async def upload_cover(
             pass
 
     book.cover_path = f"static/covers/{fname}"
-    session.add(book); session.commit(); session.refresh(book)
+    session.add(book)
+    session.commit()
+    session.refresh(book)
     return book_to_out(book)
 
 
@@ -392,7 +412,9 @@ def delete_cover(book_id: int, session: Session = Depends(get_session)):
         pass
 
     book.cover_path = new_cover
-    session.add(book); session.commit(); session.refresh(book)
+    session.add(book)
+    session.commit()
+    session.refresh(book)
     return book_to_out(book)
 
 
@@ -408,24 +430,28 @@ def open_book(book_id: int, session: Session = Depends(get_session)):
         raise HTTPException(404, "File not found on disk")
 
     book.last_opened = datetime.utcnow()
-    session.add(book); session.commit()
+    session.add(book)
+    session.commit()
 
     page = max(book.current_page or 1, 1)
     try:
         if book.file_type == "pdf" and page > 1:
             file_url = fp.as_uri() + f"#page={page}"
             if sys.platform == "win32":
-                import webbrowser; webbrowser.open(file_url)
+                webbrowser.open(file_url)
             elif sys.platform == "darwin":
                 subprocess.Popen(["open", file_url])
             else:
                 subprocess.Popen(["xdg-open", file_url])
         else:
-            if sys.platform == "win32":    os.startfile(str(fp))
-            elif sys.platform == "darwin": subprocess.Popen(["open", str(fp)])
-            else:                          subprocess.Popen(["xdg-open", str(fp)])
+            if sys.platform == "win32":
+                os.startfile(str(fp))
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", str(fp)])
+            else:
+                subprocess.Popen(["xdg-open", str(fp)])
     except Exception as e:
-        raise HTTPException(500, f"Could not open file: {e}")
+        raise HTTPException(500, f"Could not open file: {e}") from e
 
     return {"ok": True, "page": page}
 
@@ -436,7 +462,7 @@ def open_book(book_id: int, session: Session = Depends(get_session)):
 def get_book_progress(book_id: int, session: Session = Depends(get_session)):
     if not session.get(Book, book_id):
         raise HTTPException(404, "Book not found")
-    return [log_to_out(l) for l in get_progress_logs(session, book_id)]
+    return [log_to_out(log) for log in get_progress_logs(session, book_id)]
 
 
 @app.post("/api/books/{book_id}/progress")
@@ -468,7 +494,9 @@ def update_log_note(
     if not log or log.book_id != book_id:
         raise HTTPException(404, "Log entry not found")
     log.note = data.note
-    session.add(log); session.commit(); session.refresh(log)
+    session.add(log)
+    session.commit()
+    session.refresh(log)
     return log_to_out(log)
 
 
@@ -477,7 +505,8 @@ def delete_progress_log(book_id: int, log_id: int, session: Session = Depends(ge
     log = session.get(ProgressLog, log_id)
     if not log or log.book_id != book_id:
         raise HTTPException(404, "Log entry not found")
-    session.delete(log); session.commit()
+    session.delete(log)
+    session.commit()
     return {"ok": True}
 
 
@@ -501,7 +530,9 @@ def add_quote(book_id: int, data: QuoteIn, session: Session = Depends(get_sessio
         quote_text  = data.quote_text.strip(),
         page_number = data.page_number,
     )
-    session.add(quote); session.commit(); session.refresh(quote)
+    session.add(quote)
+    session.commit()
+    session.refresh(quote)
     return quote_to_out(quote)
 
 
@@ -510,7 +541,8 @@ def delete_quote(book_id: int, quote_id: int, session: Session = Depends(get_ses
     quote = session.get(BookQuote, quote_id)
     if not quote or quote.book_id != book_id:
         raise HTTPException(404, "Quote not found")
-    session.delete(quote); session.commit()
+    session.delete(quote)
+    session.commit()
     return {"ok": True}
 
 
@@ -543,8 +575,11 @@ def set_library_path(data: LibraryPathIn):
         raise HTTPException(400, "Path does not exist or is not a directory")
     save_library_path(str(p))
     if _watchdog_observer:
-        try: _watchdog_observer.stop(); _watchdog_observer.join(timeout=2)
-        except Exception: pass
+        try:
+            _watchdog_observer.stop()
+            _watchdog_observer.join(timeout=2)
+        except Exception:
+            pass
     threading.Thread(target=scan_library, args=(str(p),), daemon=True).start()
     _watchdog_observer = start_watchdog(str(p))
     return {"ok": True, "path": str(p)}

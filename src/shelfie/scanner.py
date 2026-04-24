@@ -2,16 +2,16 @@
 scanner.py — File scanning, metadata extraction, cover generation, and Watchdog sync.
 """
 
-import os
 import hashlib
+import io
 import logging
+import os
 from pathlib import Path
-from typing import Optional, Tuple
 
 from sqlmodel import Session
 
 from shelfie.config import COVERS_DIR
-from shelfie.database import engine, Book, get_or_create_tag, get_book_by_path
+from shelfie.database import Book, engine, get_book_by_path
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ def _cover_url(fname: str) -> str:
 
 # ── PDF ───────────────────────────────────────────────────────────────────────
 
-def extract_pdf_metadata(file_path: str) -> Tuple[str, Optional[int], Optional[str]]:
+def extract_pdf_metadata(file_path: str) -> tuple[str, int | None, str | None]:
     """Return (title, total_pages, cover_url).  Never raises — returns fallbacks."""
     title       = Path(file_path).stem
     total_pages = None
@@ -69,7 +69,7 @@ def extract_pdf_metadata(file_path: str) -> Tuple[str, Optional[int], Optional[s
 
 # ── EPUB ──────────────────────────────────────────────────────────────────────
 
-def extract_epub_metadata(file_path: str) -> Tuple[str, Optional[int], Optional[str]]:
+def extract_epub_metadata(file_path: str) -> tuple[str, int | None, str | None]:
     """Return (title, None, cover_url).  EPUBs don't have a fixed page count."""
     title     = Path(file_path).stem
     cover_url = None
@@ -78,7 +78,6 @@ def extract_epub_metadata(file_path: str) -> Tuple[str, Optional[int], Optional[
         import ebooklib
         from ebooklib import epub
         from PIL import Image
-        import io
 
         book = epub.read_epub(file_path, options={"ignore_ncx": True})
 
@@ -125,7 +124,7 @@ def extract_epub_metadata(file_path: str) -> Tuple[str, Optional[int], Optional[
 
 # ── Core DB helpers ───────────────────────────────────────────────────────────
 
-def add_book_to_db(session: Session, file_path: str) -> Optional[Book]:
+def add_book_to_db(session: Session, file_path: str) -> Book | None:
     """Add a book if not already tracked.  Returns the new Book or None."""
     # Normalise to absolute path so Docker volume paths are stable
     file_path = str(Path(file_path).resolve())
@@ -151,7 +150,9 @@ def add_book_to_db(session: Session, file_path: str) -> Optional[Book]:
         cover_path  = cover_path,
         total_pages = total_pages,
     )
-    session.add(book); session.commit(); session.refresh(book)
+    session.add(book)
+    session.commit()
+    session.refresh(book)
     logger.info("Added: %s", title)
     return book
 
@@ -166,7 +167,8 @@ def remove_book_from_db(session: Session, file_path: str) -> None:
                 Path(book.cover_path).unlink(missing_ok=True)
             except Exception:
                 pass
-        session.delete(book); session.commit()
+        session.delete(book)
+        session.commit()
         logger.info("Removed: %s", file_path)
 
 
@@ -207,8 +209,8 @@ def start_watchdog(library_path: str):
       - NFS / SMB / FUSE volumes
       - Any filesystem that doesn't propagate kernel inotify events
     """
-    from watchdog.observers.polling import PollingObserver
     from watchdog.events import FileSystemEventHandler
+    from watchdog.observers.polling import PollingObserver
 
     class LibraryHandler(FileSystemEventHandler):
         @staticmethod
