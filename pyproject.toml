@@ -85,6 +85,12 @@ ignore = ["E501"]
 [tool.ruff.lint.per-file-ignores]
 "src/shelfie/main.py" = ["B008"]
 
+# ── Pytest ────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths    = ["tests"]
+pythonpath   = ["src"]
+addopts      = "-v --tb=short"
+
 # ── Mypy ──────────────────────────────────────────────────────────────────────
 [tool.mypy]
 python_version         = "3.11"
