@@ -19,6 +19,7 @@ import os
 # ── Must be set before any shelfie module is imported ─────────────────────────
 os.environ.setdefault("LIBRARY_PATH", "/nonexistent_test_library_path")
 os.environ.setdefault("SHELFIE_DATA_DIR", os.path.join(os.path.dirname(__file__), ".test_data"))
+os.environ.setdefault("SHELFIE_DISABLE_UPDATE_CHECK", "1")
 
 import pytest
 from sqlalchemy import create_engine as _sa_create_engine, event

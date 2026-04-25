@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 import threading
+import time
 import webbrowser
 from datetime import datetime
 from importlib.resources import files as _pkg_files
@@ -61,11 +62,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+_UPDATE_CHECK_TTL_SECONDS = 6 * 60 * 60
+_update_check_lock = threading.Lock()
+_update_check_last_run = 0.0
+_update_check_latest: str | None = None
+
 
 # ── Library-path helpers ───────────────────────────────────────────────────────
 
 def _is_docker_runtime() -> bool:
     return os.environ.get("SHELFIE_DATA_DIR", "").startswith("/data")
+
+
+def _update_check_disabled() -> bool:
+    return os.environ.get("SHELFIE_DISABLE_UPDATE_CHECK", "").lower() in {"1", "true", "yes"}
 
 
 def _update_upgrade_hint() -> str:
@@ -74,8 +84,28 @@ def _update_upgrade_hint() -> str:
     return "Upgrade with: pip install --upgrade shelfie-py"
 
 
+def _get_newer_release_cached(force: bool = False) -> str | None:
+    global _update_check_last_run, _update_check_latest
+
+    if _update_check_disabled():
+        return None
+
+    now = time.time()
+    if not force and _update_check_last_run and (now - _update_check_last_run) < _UPDATE_CHECK_TTL_SECONDS:
+        return _update_check_latest
+
+    with _update_check_lock:
+        now = time.time()
+        if not force and _update_check_last_run and (now - _update_check_last_run) < _UPDATE_CHECK_TTL_SECONDS:
+            return _update_check_latest
+
+        _update_check_latest = check_for_newer_release(__version__)
+        _update_check_last_run = now
+        return _update_check_latest
+
+
 def _log_if_update_available() -> None:
-    latest = check_for_newer_release(__version__)
+    latest = _get_newer_release_cached()
     if latest:
         logger.warning(
             "A newer Shelfie release is available: %s (installed: %s). %s",
@@ -145,7 +175,7 @@ _watchdog_observer = None
 @app.on_event("startup")
 def on_startup() -> None:
     global _watchdog_observer
-    if os.environ.get("SHELFIE_DISABLE_UPDATE_CHECK", "").lower() not in {"1", "true", "yes"}:
+    if not _update_check_disabled():
         threading.Thread(target=_log_if_update_available, daemon=True).start()
     create_db_and_tables()
     lib = load_library_path()
@@ -588,6 +618,19 @@ def get_library_path():
     return {
         "path": load_library_path(),
         "is_docker": os.environ.get("SHELFIE_DATA_DIR", "").startswith("/data"),
+    }
+
+
+@app.get("/api/version")
+def get_version_info():
+    latest = _get_newer_release_cached()
+    return {
+        "installed_version": __version__,
+        "latest_version": latest,
+        "update_available": bool(latest),
+        "upgrade_hint": _update_upgrade_hint() if latest else None,
+        "release_url": "https://pypi.org/project/shelfie-py/",
+        "update_check_disabled": _update_check_disabled(),
     }
 
 @app.post("/api/library-path")

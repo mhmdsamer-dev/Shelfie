@@ -463,6 +463,34 @@ class TestLibraryPath:
         assert resp.status_code == 400
 
 
+class TestVersionInfo:
+    def test_returns_update_available_status(self, client, monkeypatch):
+        monkeypatch.setattr("shelfie.main._get_newer_release_cached", lambda force=False: "0.9.0")
+        monkeypatch.setattr("shelfie.main._update_check_disabled", lambda: False)
+
+        resp = client.get("/api/version")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["installed_version"]
+        assert data["latest_version"] == "0.9.0"
+        assert data["update_available"] is True
+        assert data["upgrade_hint"]
+        assert data["release_url"] == "https://pypi.org/project/shelfie-py/"
+        assert data["update_check_disabled"] is False
+
+    def test_returns_disabled_status(self, client, monkeypatch):
+        monkeypatch.setattr("shelfie.main._get_newer_release_cached", lambda force=False: None)
+        monkeypatch.setattr("shelfie.main._update_check_disabled", lambda: True)
+
+        resp = client.get("/api/version")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["latest_version"] is None
+        assert data["update_available"] is False
+        assert data["upgrade_hint"] is None
+        assert data["update_check_disabled"] is True
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Rescan endpoint
 # ══════════════════════════════════════════════════════════════════════════════
