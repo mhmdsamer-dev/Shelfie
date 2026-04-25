@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 # ── Project metadata ───────────────────────────────────────────────────────────
 [project]
 name        = "shelfie-py"
-version     = "0.1.0"
+version     = "0.2.0"
 description = "Self-hosted local library manager for PDFs and EPUBs"
 readme      = "README.md"
 license     = { text = "GPL-2.0-only" }
