@@ -52,6 +52,7 @@ from shelfie.scanner import (
     scan_library,
     start_watchdog,
 )
+from shelfie.version_check import check_for_newer_release
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -62,6 +63,26 @@ logger = logging.getLogger(__name__)
 
 
 # ── Library-path helpers ───────────────────────────────────────────────────────
+
+def _is_docker_runtime() -> bool:
+    return os.environ.get("SHELFIE_DATA_DIR", "").startswith("/data")
+
+
+def _update_upgrade_hint() -> str:
+    if _is_docker_runtime():
+        return "Update your image (for example: docker pull mhmdsamerdev/shelfie)."
+    return "Upgrade with: pip install --upgrade shelfie-py"
+
+
+def _log_if_update_available() -> None:
+    latest = check_for_newer_release(__version__)
+    if latest:
+        logger.warning(
+            "A newer Shelfie release is available: %s (installed: %s). %s",
+            latest,
+            __version__,
+            _update_upgrade_hint(),
+        )
 
 def load_library_path() -> str:
     if CONFIG_FILE.exists():
@@ -124,6 +145,8 @@ _watchdog_observer = None
 @app.on_event("startup")
 def on_startup() -> None:
     global _watchdog_observer
+    if os.environ.get("SHELFIE_DISABLE_UPDATE_CHECK", "").lower() not in {"1", "true", "yes"}:
+        threading.Thread(target=_log_if_update_available, daemon=True).start()
     create_db_and_tables()
     lib = load_library_path()
     if Path(lib).exists():

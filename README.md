@@ -40,6 +40,15 @@ shelfie [--host HOST] [--port PORT] [--reload] [--log-level LEVEL]
   --log-level  debug | info | warning | error  (default: info)
 ```
 
+### Update checks
+---
+On startup, Shelfie checks PyPI for a newer `shelfie-py` release and prints an upgrade hint:
+
+- Pip installs: `pip install --upgrade shelfie-py`
+- Docker installs: `docker pull mhmdsamerdev/shelfie`
+
+Disable this check by setting `SHELFIE_DISABLE_UPDATE_CHECK=1`.
+
 All user data is stored under `SHELFIE_DATA_DIR` (default `~/.shelfie`)
 
 ## 🤝 Contributing
