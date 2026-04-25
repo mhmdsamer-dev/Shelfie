@@ -21,7 +21,7 @@ os.environ.setdefault("LIBRARY_PATH", "/nonexistent_test_library_path")
 os.environ.setdefault("SHELFIE_DATA_DIR", os.path.join(os.path.dirname(__file__), ".test_data"))
 
 import pytest
-from sqlalchemy import create_engine as _sa_create_engine
+from sqlalchemy import create_engine as _sa_create_engine, event
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel
 from fastapi.testclient import TestClient
@@ -46,6 +46,13 @@ def test_engine():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+
+    @event.listens_for(engine, "connect")
+    def _fk_pragma(dbapi_connection, _record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
     SQLModel.metadata.create_all(engine)
 
     # Patch module-level engines so Session(engine) calls inside scan_library,

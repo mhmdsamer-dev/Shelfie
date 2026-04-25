@@ -5,7 +5,9 @@ database.py — SQLModel models and zero-loss database initialisation.
 import logging
 from datetime import datetime
 
-from sqlalchemy import text
+from typing import List, Optional
+
+from sqlalchemy import event, text
 from sqlmodel import Field, Relationship, Session, SQLModel, create_engine, select
 
 from shelfie.config import DATABASE_URL
@@ -17,6 +19,13 @@ engine = create_engine(
     echo=False,
     connect_args={"check_same_thread": False},   # needed for SQLite + FastAPI threads
 )
+
+
+@event.listens_for(engine, "connect")
+def _set_sqlite_pragma(dbapi_connection, _connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
 
 # ── Link table ─────────────────────────────────────────────────────────────────
@@ -31,7 +40,7 @@ class BookTagLink(SQLModel, table=True):
 class Tag(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(index=True, unique=True)
-    books: list["Book"] = Relationship(back_populates="tags", link_model=BookTagLink)
+    books: List["Book"] = Relationship(back_populates="tags", link_model=BookTagLink)
 
 
 # ── ProgressLog ────────────────────────────────────────────────────────────────
@@ -42,7 +51,7 @@ class ProgressLog(SQLModel, table=True):
     page: int
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     note: str | None = None
-    book: "Book" | None = Relationship(back_populates="progress_logs")
+    book: Optional["Book"] = Relationship(back_populates="progress_logs")
 
 
 # ── BookQuote ──────────────────────────────────────────────────────────────────
@@ -53,7 +62,7 @@ class BookQuote(SQLModel, table=True):
     quote_text: str
     page_number: int | None = None
     date_added: datetime = Field(default_factory=datetime.utcnow)
-    book: "Book" | None = Relationship(back_populates="quotes")
+    book: Optional["Book"] = Relationship(back_populates="quotes")
 
 
 # ── Book ───────────────────────────────────────────────────────────────────────
