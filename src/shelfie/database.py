@@ -4,8 +4,7 @@ database.py — SQLModel models and zero-loss database initialisation.
 
 import logging
 from datetime import datetime
-
-from typing import List, Optional
+from typing import Optional
 
 from sqlalchemy import event, text
 from sqlmodel import Field, Relationship, Session, SQLModel, create_engine, select
@@ -40,7 +39,7 @@ class BookTagLink(SQLModel, table=True):
 class Tag(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(index=True, unique=True)
-    books: List["Book"] = Relationship(back_populates="tags", link_model=BookTagLink)
+    books: list["Book"] = Relationship(back_populates="tags", link_model=BookTagLink)
 
 
 # ── ProgressLog ────────────────────────────────────────────────────────────────
