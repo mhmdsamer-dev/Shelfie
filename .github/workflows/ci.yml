@@ -5,23 +5,25 @@
 # OVERVIEW
 # --------
 # This workflow runs on every push to `main` and on every pull request.
-# It is split into four sequential jobs that must all pass for the pipeline
+# It is split into five jobs that must all pass for the pipeline
 # to be considered green:
 #
 #   1. lint-and-typecheck  → Ruff linter + Mypy static analysis
 #   2. security-scan       → pip-audit vulnerability scanner
 #   3. test                → pytest with verbose JUnit XML output
-#   4. docker-build        → Validates the Dockerfile builds without errors
+#   4. wheel-smoke-test    → Builds & installs the wheel; verifies the app imports
+#   5. docker-build        → Validates the Dockerfile builds without errors
 #
 # HOW TO ACCESS DEBUG ARTIFACTS WHEN A BUILD FAILS
 # -------------------------------------------------
 #   1. Open the failed workflow run on GitHub Actions.
 #   2. Scroll to the bottom of the run summary page.
 #   3. Under "Artifacts", download:
-#        • `pytest-results`  → JUnit XML + pytest verbose log
-#        • `ruff-report`     → Full Ruff output log
-#        • `mypy-report`     → Full Mypy output log
-#        • `pip-audit-report`→ Dependency vulnerability JSON report
+#        • `pytest-results`      → JUnit XML + pytest verbose log
+#        • `ruff-report`         → Full Ruff output log
+#        • `mypy-report`         → Full Mypy output log
+#        • `pip-audit-report`    → Dependency vulnerability JSON report
+#        • `wheel-smoke-test-log`→ Import error from non-editable wheel install
 #   4. A human-readable summary of failures is also printed inline on the
 #      workflow summary page (via $GITHUB_STEP_SUMMARY).
 #
@@ -318,13 +320,78 @@ jobs:
           #      `pytest -v --tb=long`.
 
   # ══════════════════════════════════════════════════════════════════════════════
-  # JOB 4 — Docker Build Validation
+  # JOB 4 — Wheel Install Smoke Test
+  # ══════════════════════════════════════════════════════════════════════════════
+  # Catches packaging bugs (e.g. missing static assets, bad entry-points) that
+  # only surface when the package is installed from a built wheel — not from an
+  # editable source install, which is what the test job uses.
+  wheel-smoke-test:
+    name: "📦 Wheel Smoke Test"
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install build frontend
+        run: pip install build
+
+      - name: Build wheel
+        run: python -m build --wheel
+
+      - name: Install from wheel (non-editable)
+        run: pip install dist/*.whl
+
+      - name: Smoke-test package import
+        id: smoke
+        run: |
+          set +e
+          python -c "from shelfie.main import app; print('app imported successfully')" 2>&1 | tee smoke-test.log
+          SMOKE_EXIT=${PIPESTATUS[0]}
+          set -e
+
+          echo "## 📦 Wheel Smoke Test" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$SMOKE_EXIT" -ne 0 ]; then
+            echo "### ❌ Wheel install smoke test failed" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            cat smoke-test.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### ✅ Wheel installs and imports cleanly" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          exit "$SMOKE_EXIT"
+
+      - name: Upload smoke test log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-smoke-test-log
+          path: smoke-test.log
+          retention-days: 7
+          # How to use: Download "wheel-smoke-test-log" from the Artifacts section.
+          # This log captures the Python import error (e.g. missing package assets,
+          # bad entry-points) that only surface when installing from a built wheel
+          # rather than an editable source install.
+
+  # ══════════════════════════════════════════════════════════════════════════════
+  # JOB 5 — Docker Build Validation
   # ══════════════════════════════════════════════════════════════════════════════
   docker-build:
     name: "🐳 Docker Build"
     runs-on: ubuntu-latest
-    # Run after tests pass so we don't burn Docker layer cache on broken code.
-    needs: [test]
+    # Run after tests and wheel smoke test pass so we don't burn Docker layer
+    # cache on code that is functionally or packaging-wise broken.
+    needs: [test, wheel-smoke-test]
 
     steps:
       - name: Checkout repository
