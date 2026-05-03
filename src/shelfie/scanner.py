@@ -167,6 +167,8 @@ def remove_book_from_db(session: Session, file_path: str) -> None:
                 Path(book.cover_path).unlink(missing_ok=True)
             except Exception:
                 pass
+        book.tags = []
+        session.flush()
         session.delete(book)
         session.commit()
         logger.info("Removed: %s", file_path)
