@@ -41,7 +41,7 @@ FROM python:3.11-slim AS runtime
 
 LABEL org.opencontainers.image.title="Shelfie"
 LABEL org.opencontainers.image.description="Self-hosted local library manager"
-LABEL org.opencontainers.image.version="0.2.0"
+LABEL org.opencontainers.image.version="0.2.1"
 
 # Runtime system libraries needed by PyMuPDF and Pillow
 RUN apt-get update && apt-get install -y --no-install-recommends \
