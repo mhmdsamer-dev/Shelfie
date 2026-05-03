@@ -395,8 +395,6 @@ def delete_book(book_id: int, session: Session = Depends(get_session)):
             Path(book.cover_path).unlink(missing_ok=True)
         except Exception:
             pass
-    for log in get_progress_logs(session, book_id):
-        session.delete(log)
     session.delete(book)
     session.commit()
     return {"ok": True}

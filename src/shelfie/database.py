@@ -89,8 +89,14 @@ class Book(SQLModel, table=True):
     date_finished: datetime | None = None
 
     tags: list[Tag] = Relationship(back_populates="books", link_model=BookTagLink)
-    progress_logs: list[ProgressLog] = Relationship(back_populates="book")
-    quotes: list[BookQuote] = Relationship(back_populates="book")
+    progress_logs: list[ProgressLog] = Relationship(
+        back_populates="book",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    quotes: list[BookQuote] = Relationship(
+        back_populates="book",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
 
     @property
     def display_title(self) -> str:
