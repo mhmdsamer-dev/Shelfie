@@ -395,6 +395,8 @@ def delete_book(book_id: int, session: Session = Depends(get_session)):
             Path(book.cover_path).unlink(missing_ok=True)
         except Exception:
             pass
+    book.tags = []
+    session.flush()
     session.delete(book)
     session.commit()
     return {"ok": True}
